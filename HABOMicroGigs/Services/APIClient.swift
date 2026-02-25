@@ -1,13 +1,10 @@
 // MARK: - APIClient.swift
-// NEW FILE — Add to HABOMicroGigs/Services/APIClient.swift
-//
-// This replaces all local [@State var tasks: [GigTask] = []] arrays.
-// Every screen calls these async functions instead.
+// HABOMicroGigs/Services/APIClient.swift
 
 import Foundation
 
-// MARK: - Change this to your Railway deployment URL
-let API_BASE_URL = "https://habo-backend-production.up.railway.app"
+// MARK: - Change this URL every time Cloudflare restarts
+let API_BASE_URL = "https://reads-survivor-saved-companies.trycloudflare.com"
 
 enum APIError: LocalizedError {
     case invalidURL
@@ -43,7 +40,7 @@ class APIClient {
 
     private init() {}
 
-    // MARK: - Token Storage (Keychain-backed via UserDefaults for simplicity)
+    // MARK: - Token Storage
     var accessToken: String? {
         get { UserDefaults.standard.string(forKey: "habo_access_token") }
         set { UserDefaults.standard.set(newValue, forKey: "habo_access_token") }
@@ -75,26 +72,31 @@ class APIClient {
         }
 
         let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse else { throw APIError.serverError("No response") }
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.serverError("No response")
+        }
 
         if http.statusCode == 401 {
             clearToken()
             throw APIError.unauthorized
         }
         if !(200...299).contains(http.statusCode) {
-            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["detail"] ?? "Server error \(http.statusCode)"
+            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["detail"]
+                ?? "Server error \(http.statusCode)"
             throw APIError.serverError(msg)
         }
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
+            print("Decoding error: \(error)")
             throw APIError.decodingError
         }
     }
 
     // MARK: - Auth
     func loginWithGoogle(idToken: String, publicKey: String) async throws -> AuthResponse {
-        try await request("POST", path: "/auth/login", body: GoogleLoginRequest(idToken: idToken, publicKey: publicKey))
+        try await request("POST", path: "/auth/login",
+                          body: GoogleLoginRequest(idToken: idToken, publicKey: publicKey))
     }
 
     func getMe() async throws -> UserResponse {
@@ -103,8 +105,10 @@ class APIClient {
 
     // MARK: - Tasks
     func getTasks(lat: Double, lon: Double, category: String? = nil) async throws -> [TaskResponse] {
-        var items = [URLQueryItem(name: "lat", value: String(lat)),
-                     URLQueryItem(name: "lon", value: String(lon))]
+        var items = [
+            URLQueryItem(name: "lat", value: String(lat)),
+            URLQueryItem(name: "lon", value: String(lon))
+        ]
         if let cat = category { items.append(URLQueryItem(name: "category", value: cat)) }
         return try await request("GET", path: "/tasks", queryItems: items)
     }
@@ -123,7 +127,8 @@ class APIClient {
 
     // MARK: - Users
     func searchUsers(query: String) async throws -> [UserSearchResult] {
-        try await request("GET", path: "/users/search", queryItems: [URLQueryItem(name: "q", value: query)])
+        try await request("GET", path: "/users/search",
+                          queryItems: [URLQueryItem(name: "q", value: query)])
     }
 
     func getUserProfile(userId: String) async throws -> UserProfileResponse {
@@ -148,9 +153,27 @@ class APIClient {
         try await request("GET", path: "/chat/messages/\(taskId)")
     }
 
-    // MARK: - Payments
+    // MARK: - Payments (Razorpay Test Mode)
     func createPaymentOrder(taskId: String, amountPaise: Int) async throws -> PaymentOrderResponse {
         try await request("POST", path: "/payments/create-order",
                           body: CreateOrderRequest(taskId: taskId, amountPaise: amountPaise))
+    }
+
+    func verifyPayment(
+        taskId: String,
+        orderId: String,
+        paymentId: String,
+        signature: String
+    ) async throws {
+        let _: [String: Bool] = try await request(
+            "POST",
+            path: "/payments/verify",
+            body: VerifyPaymentRequest(
+                taskId: taskId,
+                razorpayOrderId: orderId,
+                razorpayPaymentId: paymentId,
+                razorpaySignature: signature
+            )
+        )
     }
 }

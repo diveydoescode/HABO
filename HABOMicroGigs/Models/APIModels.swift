@@ -1,8 +1,5 @@
 // MARK: - APIModels.swift
-// NEW FILE — Add to HABOMicroGigs/Models/APIModels.swift
-//
-// All Codable structs that map to your FastAPI backend JSON.
-// These REPLACE the local GigTask / UserProfile models for API calls.
+// HABOMicroGigs/Models/APIModels.swift
 
 import Foundation
 
@@ -70,7 +67,7 @@ struct TaskCreateRequest: Encodable {
     let isNegotiable: Bool
     let latitude: Double
     let longitude: Double
-    let radiusMetres: Int   // 5000–50000 (5km–50km)
+    let radiusMetres: Int
 }
 
 struct TaskResponse: Decodable, Identifiable {
@@ -111,7 +108,6 @@ struct MessageResponse: Decodable, Identifiable {
     let ciphertext: String
     let nonce: String
     let sentAt: Date
-    // Decrypted locally — never comes from server
     var plaintext: String? = nil
 
     enum CodingKeys: String, CodingKey {
@@ -125,9 +121,19 @@ struct CreateOrderRequest: Encodable {
     let amountPaise: Int
 }
 
+struct VerifyPaymentRequest: Encodable {
+    let taskId: String
+    let razorpayOrderId: String
+    let razorpayPaymentId: String
+    let razorpaySignature: String
+}
+
 struct PaymentOrderResponse: Decodable {
     let razorpayOrderId: String
     let amountPaise: Int
     let currency: String
     let keyId: String
 }
+
+// Typealias so TaskDetailView can use either name
+typealias RazorpayOrder = PaymentOrderResponse
