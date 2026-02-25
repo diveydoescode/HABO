@@ -7,7 +7,7 @@
 import Foundation
 
 // MARK: - Change this to your Railway deployment URL
-let API_BASE_URL = "https://your-app.railway.app"
+let API_BASE_URL = "https://habo-backend-production.up.railway.app"
 
 enum APIError: LocalizedError {
     case invalidURL

@@ -1,11 +1,5 @@
 // MARK: - PostTaskView.swift
 // ⚠️  REPLACE existing HABOMicroGigs/Views/PostTaskView.swift
-//
-// Changes from old file:
-//   - Added @State var radiusKm: Double = 10  (new radius slider, 5–50km)
-//   - publishTask() now calls taskViewModel.addTask() async (API call)
-//   - Removed local GigTask creation
-//   - All existing UI preserved
 
 import SwiftUI
 import MapKit
@@ -28,10 +22,7 @@ struct PostTaskView: View {
     @State private var showValidationError: Bool = false
     @State private var validationMessage: String = ""
     @State private var isPublishing: Bool = false
-
-    // ── NEW: radius slider ────────────────────
     @State private var radiusKm: Double = 10
-    // ─────────────────────────────────────────
 
     private var isFormValid: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -47,7 +38,7 @@ struct PostTaskView: View {
                     headerSection
                     detailsSection
                     budgetSection
-                    radiusSection          // ← NEW section
+                    radiusSection
                     locationSection
 
                     if showValidationError {
@@ -85,7 +76,7 @@ struct PostTaskView: View {
         }
     }
 
-    // ── NEW: Radius Section ───────────────────────────────────────────────
+    // MARK: - Radius Section
     private var radiusSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -114,8 +105,8 @@ struct PostTaskView: View {
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(.rect(cornerRadius: 12))
     }
-    // ─────────────────────────────────────────────────────────────────────
 
+    // MARK: - Header Section
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Task Title").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
@@ -147,6 +138,7 @@ struct PostTaskView: View {
         }
     }
 
+    // MARK: - Details Section
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Description").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
@@ -157,6 +149,7 @@ struct PostTaskView: View {
         }
     }
 
+    // MARK: - Budget Section
     private var budgetSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Budget").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
@@ -178,6 +171,7 @@ struct PostTaskView: View {
         }
     }
 
+    // MARK: - Location Section
     private var locationSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Location").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
@@ -198,6 +192,7 @@ struct PostTaskView: View {
         }
     }
 
+    // MARK: - Publish Button
     private var publishButton: some View {
         Button {
             Task { await publishTask() }
@@ -222,7 +217,7 @@ struct PostTaskView: View {
         .padding(.top, 8)
     }
 
-    // ── CHANGED: now async, calls API ─────────────────────────────────────
+    // MARK: - Actions
     private func publishTask() async {
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
         let trimmedDesc = description.trimmingCharacters(in: .whitespaces)
@@ -240,12 +235,11 @@ struct PostTaskView: View {
             isNegotiable: isNegotiable,
             latitude: taskLatitude,
             longitude: taskLongitude,
-            radiusMetres: Int(radiusKm) * 1000   // Convert km → metres
+            radiusMetres: Int(radiusKm) * 1000
         )
         isPublishing = false
         if success { onDismiss() } else if let err = taskViewModel.errorMessage { showError(err) }
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     private func showError(_ message: String) {
         validationMessage = message
@@ -262,4 +256,82 @@ struct PostTaskView: View {
     }
 }
 
-// LocationPickerView unchanged from original — keep as-is
+// MARK: - LocationPickerView
+struct LocationPickerView: View {
+    @Binding var latitude: Double
+    @Binding var longitude: Double
+    @Binding var hasSetLocation: Bool
+    let initialLocation: CLLocation?
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var pinCoordinate: CLLocationCoordinate2D?
+    @State private var cameraPosition: MapCameraPosition = .automatic
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .center) {
+                Map(position: $cameraPosition) {
+                    if let pin = pinCoordinate {
+                        Annotation("Task Location", coordinate: pin) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(red: 1.0, green: 0.45, blue: 0.0).gradient)
+                                    .frame(width: 36, height: 36)
+                                    .shadow(color: .orange.opacity(0.4), radius: 6, y: 3)
+                                Image(systemName: "mappin")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                    }
+                    UserAnnotation()
+                }
+                .mapStyle(.standard)
+                .onMapCameraChange(frequency: .onEnd) { context in
+                    pinCoordinate = context.region.center
+                }
+
+                // Crosshair fixed in the centre of the screen
+                Image(systemName: "plus")
+                    .font(.title3.weight(.light))
+                    .foregroundStyle(.secondary)
+            }
+            .navigationTitle("Set Location")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Confirm") {
+                        if let pin = pinCoordinate {
+                            latitude = pin.latitude
+                            longitude = pin.longitude
+                            hasSetLocation = true
+                        }
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Text("Move the map to position the crosshair on your task location")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial)
+            }
+            .onAppear {
+                if let loc = initialLocation {
+                    cameraPosition = .region(MKCoordinateRegion(
+                        center: loc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    ))
+                    pinCoordinate = loc.coordinate
+                }
+            }
+        }
+    }
+}
