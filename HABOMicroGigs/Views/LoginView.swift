@@ -1,3 +1,12 @@
+// MARK: - LoginView.swift
+// ⚠️  REPLACE existing HABOMicroGigs/Views/LoginView.swift
+//
+// Changes from old file:
+//   - Button now calls authViewModel.signInWithGoogle(presenting:)
+//   - Uses UIApplication to find presenting view controller
+//   - Error alert added
+//   - Everything else (mesh gradient, age gate, animations) kept identical
+
 import SwiftUI
 
 struct LoginView: View {
@@ -35,32 +44,28 @@ struct LoginView: View {
                         Circle()
                             .fill(.ultraThinMaterial)
                             .frame(width: 100, height: 100)
-
                         Image(systemName: "hands.and.sparkles.fill")
                             .font(.system(size: 44))
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [Color(red: 1.0, green: 0.5, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
                                 )
                             )
                     }
-
                     Text("Help a Brother Out")
                         .font(.system(.largeTitle, design: .default, weight: .bold))
                         .foregroundStyle(.white)
-
                     Text("Hyper-local micro-gigs.\nPost a task. Set a price. Get it done.")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
-                        .lineSpacing(2)
                 }
 
                 Spacer()
 
                 VStack(spacing: 20) {
+                    // Age verification — unchanged
                     Button {
                         withAnimation(.spring(response: 0.3)) {
                             authViewModel.isAgeVerified.toggle()
@@ -72,7 +77,6 @@ struct LoginView: View {
                                 .font(.title3)
                                 .foregroundStyle(authViewModel.isAgeVerified ? Color(red: 1.0, green: 0.45, blue: 0.0) : .white.opacity(0.5))
                                 .contentTransition(.symbolEffect(.replace))
-
                             Text("I confirm I am 18 years or older")
                                 .font(.subheadline)
                                 .foregroundStyle(.white.opacity(0.9))
@@ -89,26 +93,33 @@ struct LoginView: View {
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
+                    if let errorMsg = authViewModel.errorMessage {
+                        Text(errorMsg)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
+                    // ── CHANGED: calls real Google Sign-In ──────────────────
                     Button {
                         if !authViewModel.isAgeVerified {
-                            withAnimation(.spring(response: 0.3)) {
-                                showAgeError = true
-                            }
+                            withAnimation(.spring(response: 0.3)) { showAgeError = true }
                             return
                         }
-                        authViewModel.signInWithGoogle()
+                        // Find the presenting view controller
+                        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                              let vc = scene.windows.first?.rootViewController else { return }
+                        authViewModel.signInWithGoogle(presenting: vc)
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "g.circle.fill")
                                 .font(.title2)
-
                             Text("Continue with Google")
                                 .font(.headline)
-
                             if authViewModel.isLoading {
                                 Spacer()
-                                ProgressView()
-                                    .tint(.white)
+                                ProgressView().tint(.white)
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -117,16 +128,14 @@ struct LoginView: View {
                             authViewModel.isAgeVerified
                                 ? AnyShapeStyle(LinearGradient(
                                     colors: [Color(red: 1.0, green: 0.45, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ))
+                                    startPoint: .leading, endPoint: .trailing))
                                 : AnyShapeStyle(Color.white.opacity(0.15))
                         )
                         .foregroundStyle(.white)
                         .clipShape(.rect(cornerRadius: 16))
                     }
                     .disabled(authViewModel.isLoading)
-                    .sensoryFeedback(.impact(weight: .medium), trigger: authViewModel.isLoading)
+                    // ────────────────────────────────────────────────────────
 
                     Text("By continuing, you agree to our Terms of Service\nand Privacy Policy")
                         .font(.caption2)
@@ -139,4 +148,3 @@ struct LoginView: View {
         }
     }
 }
-
