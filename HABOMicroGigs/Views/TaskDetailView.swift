@@ -16,6 +16,7 @@ struct TaskDetailView: View {
     @State private var paymentError: String? = nil
     @State private var paymentSuccess: Bool = false
     @State private var currentStatus: String = ""
+    @State private var showChat: Bool = false
 
     private var categoryColor: Color {
         switch task.category {
@@ -153,9 +154,11 @@ struct TaskDetailView: View {
                         .background(Color.green.opacity(0.1)).clipShape(.rect(cornerRadius: 12))
                     }
 
-                    // Open Chat Button — shows after task is accepted
+                    // Open Chat Button — uses sheet instead of NavigationLink
                     if chatIsUnlocked {
-                        NavigationLink(destination: chatDestination) {
+                        Button {
+                            showChat = true
+                        } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "bubble.left.and.bubble.right.fill")
                                 Text("Open Encrypted Chat").font(.headline)
@@ -167,7 +170,6 @@ struct TaskDetailView: View {
                             .background(Color.blue.opacity(0.12))
                             .foregroundStyle(.blue).clipShape(.rect(cornerRadius: 16))
                         }
-                        .padding(.horizontal, 0)
                     }
 
                     // Pay Button
@@ -229,9 +231,28 @@ struct TaskDetailView: View {
         }
         .onAppear {
             currentStatus = task.status
+            if task.status == "Accepted" || task.status == "Completed" {
+                Task { await fetchRecipientKey() }
+            }
         }
-        .task { await fetchRecipientKey() }
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showChat) {
+            NavigationStack {
+                Group {
+                    if let pubKey = recipientPublicKey {
+                        ChatView(taskId: task.id, currentUserId: currentUser.id, recipientPublicKey: pubKey)
+                    } else {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                            Text("Loading encryption keys...")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .task { await fetchRecipientKey() }
+                    }
+                }
+            }
+            .presentationDetents([.large])
+        }
     }
 
     // MARK: - Map Preview
@@ -251,18 +272,6 @@ struct TaskDetailView: View {
         .mapStyle(.standard).frame(height: 200).allowsHitTesting(false)
     }
 
-    @ViewBuilder
-    private var chatDestination: some View {
-        if let pubKey = recipientPublicKey {
-            ChatView(taskId: task.id, currentUserId: currentUser.id, recipientPublicKey: pubKey)
-        } else {
-            VStack(spacing: 12) {
-                ProgressView()
-                Text("Loading encryption keys...").font(.caption).foregroundStyle(.secondary)
-            }
-        }
-    }
-
     // MARK: - Accept Task
     private func acceptTask() async {
         isAccepting = true
@@ -270,25 +279,27 @@ struct TaskDetailView: View {
         if success {
             hasAccepted = true
             currentStatus = "Accepted"
-            await fetchRecipientKey()
+            // Fetch creator's public key directly since we just accepted
+            if let profile = try? await APIClient.shared.getUserProfile(userId: task.creatorId.uuidString) {
+                recipientPublicKey = profile.publicKey
+            }
         }
         isAccepting = false
     }
 
     // MARK: - Fetch Recipient Public Key
     private func fetchRecipientKey() async {
-        let otherId = isOwner ? task.acceptedById : task.creatorId
-        guard let id = otherId else {
-            // If acceptedById not set yet, use creatorId as fallback
-            if let creatorId = Optional(task.creatorId) {
-                if let profile = try? await APIClient.shared.getUserProfile(userId: creatorId.uuidString) {
-                    recipientPublicKey = profile.publicKey
-                }
+        if isOwner {
+            // I'm the creator — get acceptor's key
+            guard let acceptedById = task.acceptedById else { return }
+            if let profile = try? await APIClient.shared.getUserProfile(userId: acceptedById.uuidString) {
+                recipientPublicKey = profile.publicKey
             }
-            return
-        }
-        if let profile = try? await APIClient.shared.getUserProfile(userId: id.uuidString) {
-            recipientPublicKey = profile.publicKey
+        } else {
+            // I'm the acceptor — get creator's key
+            if let profile = try? await APIClient.shared.getUserProfile(userId: task.creatorId.uuidString) {
+                recipientPublicKey = profile.publicKey
+            }
         }
     }
 

@@ -1,12 +1,4 @@
 // MARK: - HomeView.swift
-// ⚠️  REPLACE existing HABOMicroGigs/Views/HomeView.swift
-//
-// Changes from old file:
-//   - .onAppear now calls taskViewModel.fetchTasks(location:)
-//   - Task cards now use TaskResponse instead of GigTask
-//   - TaskDetailView sheet passes currentUser instead of userName string
-//   - Filter category change triggers re-fetch
-
 import SwiftUI
 import MapKit
 
@@ -56,9 +48,11 @@ struct HomeView: View {
                 }
             }
             .sheet(item: $selectedTaskForDetail) { task in
-                TaskDetailView(task: task, taskViewModel: taskViewModel, currentUser: currentUser)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+                NavigationStack {
+                    TaskDetailView(task: task, taskViewModel: taskViewModel, currentUser: currentUser)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .task { await taskViewModel.fetchTasks(location: locationService.location) }
             .refreshable { await taskViewModel.fetchTasks(location: locationService.location) }
@@ -124,7 +118,7 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Reusable subviews (updated to use TaskResponse)
+// MARK: - Subviews
 
 struct TaskMapPin: View {
     let category: String
@@ -165,17 +159,26 @@ struct TaskCardView: View {
         default: return .purple
         }
     }
+    private var categoryIcon: String {
+        switch task.category {
+        case "Academic": return "book.fill"
+        case "Roadside Help": return "car.fill"
+        case "Labor": return "hammer.fill"
+        default: return "star.fill"
+        }
+    }
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12).fill(categoryColor.opacity(0.12)).frame(width: 50, height: 50)
-                Image(systemName: task.category == "Academic" ? "book.fill" : task.category == "Roadside Help" ? "car.fill" : task.category == "Labor" ? "hammer.fill" : "star.fill")
-                    .font(.title3).foregroundStyle(categoryColor)
+                Image(systemName: categoryIcon).font(.title3).foregroundStyle(categoryColor)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(task.title).font(.headline).foregroundStyle(.primary).lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(task.category).font(.caption.weight(.medium)).foregroundStyle(categoryColor).padding(.horizontal, 8).padding(.vertical, 2).background(categoryColor.opacity(0.1)).clipShape(.capsule)
+                    Text(task.category).font(.caption.weight(.medium)).foregroundStyle(categoryColor)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(categoryColor.opacity(0.1)).clipShape(.capsule)
                     Text("by \(task.creatorName)").font(.caption).foregroundStyle(.secondary)
                 }
                 Text(task.createdAt.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(.tertiary)

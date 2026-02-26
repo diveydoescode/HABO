@@ -1,6 +1,4 @@
 // MARK: - APIModels.swift
-// HABOMicroGigs/Models/APIModels.swift
-
 import Foundation
 
 // MARK: - Auth
@@ -94,7 +92,7 @@ struct TaskAcceptResponse: Decodable {
     let chatUnlocked: Bool
 }
 
-// MARK: - Chat (E2EE)
+// MARK: - Chat
 struct SendMessageRequest: Encodable {
     let taskId: String
     let ciphertext: String
@@ -111,7 +109,10 @@ struct MessageResponse: Decodable, Identifiable {
     var plaintext: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, taskId, senderId, ciphertext, nonce, sentAt
+        case id, ciphertext, nonce
+        case taskId = "task_id"
+        case senderId = "sender_id"
+        case sentAt = "sent_at"
     }
 }
 
@@ -135,5 +136,4 @@ struct PaymentOrderResponse: Decodable {
     let keyId: String
 }
 
-// Typealias so TaskDetailView can use either name
 typealias RazorpayOrder = PaymentOrderResponse
