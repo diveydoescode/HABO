@@ -4,7 +4,7 @@
 import Foundation
 
 // MARK: - Change this URL every time Cloudflare restarts
-let API_BASE_URL = "https://reads-survivor-saved-companies.trycloudflare.com"
+let API_BASE_URL = "https://mart-contained-preview-mason.trycloudflare.com"
 
 enum APIError: LocalizedError {
     case invalidURL
