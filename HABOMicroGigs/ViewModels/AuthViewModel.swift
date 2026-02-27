@@ -1,23 +1,11 @@
 // MARK: - AuthViewModel.swift
-// ⚠️  REPLACE existing HABOMicroGigs/ViewModels/AuthViewModel.swift
-//
-// Changes from old file:
-//   - Removed mock 1.2s delay + hardcoded "Arjun Sharma"
-//   - Added real Google Sign-In via GoogleSignIn SDK
-//   - Sends id_token + NaCl public_key to POST /auth/login
-//   - Stores JWT in UserDefaults via APIClient
-//
-// Before this works, add GoogleSignIn SDK:
-//   File → Add Package Dependencies →
-//   https://github.com/google/GoogleSignIn-iOS
-//   Then add your REVERSED_CLIENT_ID to Info.plist URL schemes
-
 import Foundation
-import GoogleSignIn   // Add package: https://github.com/google/GoogleSignIn-iOS
+import GoogleSignIn
 
 @Observable
 class AuthViewModel {
     var isAuthenticated: Bool = false
+    var isCheckingSession: Bool = true // NEW: Starts true so we show a splash screen first
     var isAgeVerified: Bool = false
     var isLoading: Bool = false
     var errorMessage: String? = nil
@@ -46,14 +34,11 @@ class AuthViewModel {
                 }
 
                 do {
-                    // Get or generate E2EE key pair — public key goes to server
                     let publicKeyB64 = try CryptoService.shared.getPublicKeyB64()
-
                     let response = try await APIClient.shared.loginWithGoogle(
                         idToken: idToken,
                         publicKey: publicKeyB64
                     )
-                    // Store JWT
                     APIClient.shared.accessToken = response.accessToken
                     self.currentUser = response.user
                     self.isAuthenticated = true
@@ -74,13 +59,21 @@ class AuthViewModel {
 
     /// Call on app launch to restore session if token exists
     func restoreSessionIfNeeded() async {
+        // Automatically set to false when this function finishes, no matter what
+        defer {
+            Task { @MainActor in self.isCheckingSession = false }
+        }
+        
         guard APIClient.shared.accessToken != nil else { return }
+        
         do {
             let user = try await APIClient.shared.getMe()
-            self.currentUser = user
-            self.isAuthenticated = true
+            await MainActor.run {
+                self.currentUser = user
+                self.isAuthenticated = true
+            }
         } catch {
-            // Token expired
+            // Token expired or invalid
             APIClient.shared.clearToken()
         }
     }

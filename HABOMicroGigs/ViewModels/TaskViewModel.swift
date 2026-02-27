@@ -1,11 +1,4 @@
 // MARK: - TaskViewModel.swift
-// ⚠️  REPLACE existing HABOMicroGigs/ViewModels/TaskViewModel.swift
-//
-// Changes from old file:
-//   - Removed: var tasks: [GigTask] = []  (local array gone)
-//   - All operations now hit the FastAPI backend via APIClient
-//   - addTask / acceptTask / cancelTask now async and call real endpoints
-
 import Foundation
 import CoreLocation
 
@@ -76,7 +69,8 @@ class TaskViewModel {
     }
 
     // MARK: - Accept task (unlocks chat)
-    func acceptTask(taskId: UUID, by userName: String) async -> Bool {
+    // ✅ FIXED: Now takes the full UserResponse to grab your correct ID
+    func acceptTask(taskId: UUID, by user: UserResponse) async -> Bool {
         do {
             let response = try await APIClient.shared.acceptTask(taskId: taskId.uuidString)
             // Update local state to reflect accepted status
@@ -90,7 +84,7 @@ class TaskViewModel {
                     longitude: old.longitude, radiusMetres: old.radiusMetres,
                     status: response.status, createdAt: old.createdAt,
                     creatorName: old.creatorName, creatorId: old.creatorId,
-                    acceptedById: response.taskId
+                    acceptedById: user.id // ✅ Correctly sets your User ID locally!
                 )
             }
             return response.chatUnlocked

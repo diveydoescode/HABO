@@ -14,38 +14,34 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                if showMapView { mapContent } else { listContent }
-                viewToggle.padding(.top, 8)
+                if showMapView {
+                    mapContent
+                } else {
+                    listContent
+                }
             }
             .navigationTitle("HABO")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     HStack(spacing: 6) {
-                        Image(systemName: "location.fill").font(.caption).foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
-                        Text(locationService.placeName).font(.subheadline.weight(.medium))
+                        Image(systemName: "location.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
+                        Text(locationService.placeName)
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("All Categories") {
-                            taskViewModel.filterCategory = nil
-                            Task { await taskViewModel.fetchTasks(location: locationService.location) }
-                        }
-                        ForEach(TaskCategory.allCases) { category in
-                            Button {
-                                taskViewModel.filterCategory = category.rawValue
-                                Task { await taskViewModel.fetchTasks(location: locationService.location) }
-                            } label: {
-                                Label(category.rawValue, systemImage: category.icon)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: taskViewModel.filterCategory != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                            .font(.title3)
-                            .foregroundStyle(taskViewModel.filterCategory != nil ? Color(red: 1.0, green: 0.45, blue: 0.0) : .primary)
-                    }
+            }
+            .safeAreaInset(edge: .top) {
+                // Top controls (Categories + View Toggle) floating over map/list
+                VStack(spacing: 12) {
+                    categoryPills
+                    viewToggle
                 }
+                .padding(.bottom, 12)
+                .background(.regularMaterial)
+                .shadow(color: .black.opacity(0.05), radius: 5, y: 5)
             }
             .sheet(item: $selectedTaskForDetail) { task in
                 NavigationStack {
@@ -55,29 +51,72 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
             }
             .task { await taskViewModel.fetchTasks(location: locationService.location) }
-            .refreshable { await taskViewModel.fetchTasks(location: locationService.location) }
         }
     }
 
+    // MARK: - Category Pills
+    private var categoryPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                // "All" Pill
+                CategoryPillView(
+                    title: "All",
+                    icon: "square.grid.2x2.fill",
+                    color: .primary,
+                    count: taskViewModel.tasks.filter { $0.status == "Active" }.count,
+                    isSelected: taskViewModel.filterCategory == nil
+                ) {
+                    taskViewModel.filterCategory = nil
+                    Task { await taskViewModel.fetchTasks(location: locationService.location) }
+                }
+
+                // Dynamic Categories
+                ForEach(TaskCategory.allCases) { category in
+                    CategoryPillView(
+                        title: category.rawValue,
+                        icon: category.icon,
+                        color: categoryColor(category.rawValue),
+                        count: taskViewModel.tasks.filter { $0.status == "Active" && $0.category == category.rawValue }.count,
+                        isSelected: taskViewModel.filterCategory == category.rawValue
+                    ) {
+                        taskViewModel.filterCategory = category.rawValue
+                        Task { await taskViewModel.fetchTasks(location: locationService.location) }
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+    }
+
+    // MARK: - Map / List Toggle
     private var viewToggle: some View {
         HStack(spacing: 0) {
             Button { withAnimation(.spring(response: 0.35)) { showMapView = true } } label: {
-                Label("Map", systemImage: "map.fill").font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(showMapView ? Color(red: 1.0, green: 0.45, blue: 0.0) : Color(.secondarySystemBackground))
+                Label("Map", systemImage: "map.fill")
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(showMapView ? Color(red: 1.0, green: 0.45, blue: 0.0) : Color.clear)
                     .foregroundStyle(showMapView ? .white : .secondary)
             }
             Button { withAnimation(.spring(response: 0.35)) { showMapView = false } } label: {
-                Label("List", systemImage: "list.bullet").font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(!showMapView ? Color(red: 1.0, green: 0.45, blue: 0.0) : Color(.secondarySystemBackground))
+                Label("List", systemImage: "list.bullet")
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(!showMapView ? Color(red: 1.0, green: 0.45, blue: 0.0) : Color.clear)
                     .foregroundStyle(!showMapView ? .white : .secondary)
             }
         }
-        .clipShape(.capsule).shadow(color: .black.opacity(0.15), radius: 8, y: 4).zIndex(1)
+        .frame(width: 240)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(.capsule)
+        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
         .sensoryFeedback(.selection, trigger: showMapView)
     }
 
+    // MARK: - Map Content
     private var mapContent: some View {
         Map(position: $mapPosition) {
             UserAnnotation()
@@ -91,34 +130,122 @@ struct HomeView: View {
         }
         .mapStyle(.standard(elevation: .realistic))
         .mapControls { MapUserLocationButton(); MapCompass() }
-        .ignoresSafeArea(edges: .bottom)
     }
 
+    // MARK: - List Content
     private var listContent: some View {
         Group {
             if taskViewModel.isLoading {
                 VStack { Spacer(); ProgressView().tint(Color(red: 1.0, green: 0.45, blue: 0.0)); Spacer() }
             } else if taskViewModel.activeTasks.isEmpty {
-                ContentUnavailableView("No Tasks Nearby", systemImage: "mappin.slash",
-                                        description: Text("No tasks exist within your area. Be the first to post one!"))
+                emptyStateView
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 12) {
-                        Color.clear.frame(height: 44)
+                    LazyVStack(spacing: 16) {
                         ForEach(taskViewModel.activeTasks) { task in
                             Button { selectedTaskForDetail = task } label: {
-                                TaskCardView(task: task)
-                            }.buttonStyle(.plain)
+                                TaskCardView(task: task, currentLocation: locationService.location)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 16).padding(.bottom, 16)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
                 }
+                .refreshable { await taskViewModel.fetchTasks(location: locationService.location) }
             }
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: - Empty State
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            ZStack {
+                Circle().fill(Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.1)).frame(width: 120, height: 120)
+                Image(systemName: "mappin.slash.circle.fill")
+                    .font(.system(size: 60))
+                    .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
+            }
+            VStack(spacing: 8) {
+                Text("No tasks near you yet")
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                Text("Be the first to post a gig in your area and get help from locals.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+            
+            Button {
+                // If you want this to jump to tab 1 (Post Tab), you can observe this Notification in ContentView
+                NotificationCenter.default.post(name: NSNotification.Name("SwitchToPostTab"), object: nil)
+            } label: {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Post a Task")
+                }
+                .font(.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 14)
+                .background(Color(red: 1.0, green: 0.45, blue: 0.0))
+                .clipShape(.capsule)
+                .shadow(color: Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.3), radius: 8, y: 4)
+            }
+            .padding(.top, 12)
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Helper
+    private func categoryColor(_ category: String) -> Color {
+        switch category {
+        case "Academic": return .blue
+        case "Roadside Help": return .red
+        case "Labor": return .orange
+        default: return .purple
         }
     }
 }
 
 // MARK: - Subviews
+
+struct CategoryPillView: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let count: Int
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title).font(.system(.subheadline, design: .rounded, weight: .semibold))
+                
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(isSelected ? .white.opacity(0.2) : color.opacity(0.15))
+                        .clipShape(.capsule)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(isSelected ? color : Color(.secondarySystemBackground))
+            .foregroundStyle(isSelected ? .white : color)
+            .clipShape(.capsule)
+            .shadow(color: isSelected ? color.opacity(0.3) : .clear, radius: 4, y: 2)
+        }
+    }
+}
 
 struct TaskMapPin: View {
     let category: String
@@ -151,6 +278,8 @@ struct TaskMapPin: View {
 
 struct TaskCardView: View {
     let task: TaskResponse
+    let currentLocation: CLLocation?
+    
     private var categoryColor: Color {
         switch task.category {
         case "Academic": return .blue
@@ -159,6 +288,7 @@ struct TaskCardView: View {
         default: return .purple
         }
     }
+    
     private var categoryIcon: String {
         switch task.category {
         case "Academic": return "book.fill"
@@ -167,28 +297,95 @@ struct TaskCardView: View {
         default: return "star.fill"
         }
     }
+    
+    private var distanceString: String {
+        guard let loc = currentLocation else { return "Nearby" }
+        let taskLoc = CLLocation(latitude: task.latitude, longitude: task.longitude)
+        let distance = loc.distance(from: taskLoc) // in meters
+        if distance < 1000 {
+            return "\(Int(distance))m away"
+        } else {
+            return String(format: "%.1f km away", distance / 1000)
+        }
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12).fill(categoryColor.opacity(0.12)).frame(width: 50, height: 50)
-                Image(systemName: categoryIcon).font(.title3).foregroundStyle(categoryColor)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(task.title).font(.headline).foregroundStyle(.primary).lineLimit(1)
-                HStack(spacing: 6) {
-                    Text(task.category).font(.caption.weight(.medium)).foregroundStyle(categoryColor)
-                        .padding(.horizontal, 8).padding(.vertical, 2)
-                        .background(categoryColor.opacity(0.1)).clipShape(.capsule)
-                    Text("by \(task.creatorName)").font(.caption).foregroundStyle(.secondary)
+        VStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                // Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(categoryColor.opacity(0.12))
+                        .frame(width: 54, height: 54)
+                    Image(systemName: categoryIcon)
+                        .font(.title3)
+                        .foregroundStyle(categoryColor)
                 }
-                Text(task.createdAt.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(.tertiary)
+                
+                // Content
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        // Title with Active Dot
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 8, height: 8)
+                        Text(task.title)
+                            .font(.system(.title3, design: .rounded, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    }
+                    
+                    HStack(spacing: 6) {
+                        Text(task.category)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(categoryColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(categoryColor.opacity(0.1))
+                            .clipShape(.capsule)
+                        
+                        Text("by \(task.creatorName)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                // Budget
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("₹\(task.budget)")
+                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
+                    
+                    if task.isNegotiable {
+                        Text("Negotiable")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray6))
+                            .clipShape(.capsule)
+                    }
+                }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("₹\(task.budget)").font(.title3.weight(.bold)).foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
-                if task.isNegotiable { Text("Negotiable").font(.caption2).foregroundStyle(.secondary) }
+            
+            Divider()
+            
+            // Footer (Distance & Time)
+            HStack {
+                Label(distanceString, systemImage: "location.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(task.createdAt.formatted(.relative(presentation: .named)))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.tertiary)
             }
         }
-        .padding(14).background(Color(.secondarySystemBackground)).clipShape(.rect(cornerRadius: 16))
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
     }
 }

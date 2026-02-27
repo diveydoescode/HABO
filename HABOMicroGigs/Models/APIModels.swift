@@ -101,7 +101,7 @@ struct SendMessageRequest: Encodable {
 
 struct MessageResponse: Decodable, Identifiable {
     let id: UUID
-    let taskId: UUID
+    let taskId: UUID? // ✅ Made optional to prevent decoding crashes
     let senderId: UUID
     let ciphertext: String
     let nonce: String

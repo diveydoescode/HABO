@@ -1,6 +1,4 @@
 // MARK: - PostTaskView.swift
-// ⚠️  REPLACE existing HABOMicroGigs/Views/PostTaskView.swift
-
 import SwiftUI
 import MapKit
 
@@ -24,6 +22,17 @@ struct PostTaskView: View {
     @State private var isPublishing: Bool = false
     @State private var radiusKm: Double = 10
 
+    private let budgetPresets = [100, 500, 1000, 2000]
+
+    private var suggestedTitles: [String] {
+        switch category {
+        case .academic: return ["Math Tutor", "Essay Review", "Physics Help", "Notes Needed"]
+        case .roadsideHelp: return ["Jump Start", "Flat Tire", "Out of Gas", "Tow Needed"]
+        case .labor: return ["Move Furniture", "Yard Work", "Heavy Lifting", "Cleaning"]
+        case .custom: return ["Deliver Package", "Stand in Line", "Pet Sitting"]
+        }
+    }
+
     private var isFormValid: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty &&
         !description.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -44,12 +53,12 @@ struct PostTaskView: View {
                     if showValidationError {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                            Text(validationMessage).font(.subheadline).foregroundStyle(.red)
+                            Text(validationMessage).font(.subheadline.weight(.semibold)).foregroundStyle(.red)
                         }
-                        .padding(12)
+                        .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.red.opacity(0.08))
-                        .clipShape(.rect(cornerRadius: 12))
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
@@ -57,7 +66,7 @@ struct PostTaskView: View {
                 }
                 .padding(16)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("Post a Demand")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -70,8 +79,123 @@ struct PostTaskView: View {
                     latitude: $taskLatitude,
                     longitude: $taskLongitude,
                     hasSetLocation: $hasSetLocation,
+                    radiusKm: radiusKm, // Passing radius for live preview
                     initialLocation: locationService.location
                 )
+            }
+        }
+    }
+
+    // MARK: - Header Section
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            
+            // Category Selection
+            Text("Category").font(.system(.subheadline, design: .rounded, weight: .bold)).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ForEach(TaskCategory.allCases) { cat in
+                    Button {
+                        withAnimation(.spring(response: 0.3)) { category = cat }
+                    } label: {
+                        VStack(spacing: 8) {
+                            Image(systemName: cat.icon).font(.title2)
+                            Text(cat.rawValue).font(.caption.weight(.bold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(category == cat ? categoryColor(cat) : Color(.secondarySystemGroupedBackground))
+                        .foregroundStyle(category == cat ? .white : .secondary)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: category == cat ? categoryColor(cat).opacity(0.3) : .black.opacity(0.04), radius: 6, y: 3)
+                    }
+                    .sensoryFeedback(.selection, trigger: category)
+                }
+            }
+
+            // Title
+            Text("Task Title").font(.system(.subheadline, design: .rounded, weight: .bold)).foregroundStyle(.secondary)
+            TextField("e.g., Help me move furniture", text: $title)
+                .font(.body).padding(16)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
+
+            // Suggested Title Chips
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(suggestedTitles, id: \.self) { suggestion in
+                        Button {
+                            title = suggestion
+                        } label: {
+                            Text(suggestion)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color(.secondarySystemGroupedBackground))
+                                .foregroundStyle(categoryColor(category))
+                                .clipShape(.capsule)
+                                .overlay(Capsule().strokeBorder(categoryColor(category).opacity(0.3), lineWidth: 1))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Details Section
+    private var detailsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Description").font(.system(.subheadline, design: .rounded, weight: .bold)).foregroundStyle(.secondary)
+            TextField("Describe what you need help with...", text: $description, axis: .vertical)
+                .lineLimit(4...8).font(.body).padding(16)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
+        }
+    }
+
+    // MARK: - Budget Section
+    private var budgetSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Budget").font(.system(.subheadline, design: .rounded, weight: .bold)).foregroundStyle(.secondary)
+            
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Text("₹").font(.title2.weight(.bold)).foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
+                    TextField("Amount", text: $budgetText)
+                        .keyboardType(.numberPad).font(.title2.weight(.semibold))
+                }
+                .padding(16).frame(maxWidth: .infinity)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
+
+                Toggle(isOn: $isNegotiable) {
+                    Text("Negotiable").font(.subheadline.weight(.bold))
+                }
+                .toggleStyle(.switch).tint(Color(red: 1.0, green: 0.45, blue: 0.0))
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
+            }
+            
+            // Budget Quick Selects
+            HStack(spacing: 10) {
+                ForEach(budgetPresets, id: \.self) { amount in
+                    Button {
+                        budgetText = "\(amount)"
+                    } label: {
+                        Text("₹\(amount)")
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .foregroundStyle(.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
+                    }
+                }
             }
         }
     }
@@ -81,11 +205,11 @@ struct PostTaskView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Visibility Radius")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(.subheadline, design: .rounded, weight: .bold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text("\(Int(radiusKm)) km")
-                    .font(.subheadline.weight(.bold))
+                    .font(.system(.headline, design: .rounded, weight: .bold))
                     .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
             }
             Text("Only users within \(Int(radiusKm)) km of your pin can see this task")
@@ -96,98 +220,47 @@ struct PostTaskView: View {
                 .tint(Color(red: 1.0, green: 0.45, blue: 0.0))
 
             HStack {
-                Text("5 km").font(.caption2).foregroundStyle(.secondary)
+                Text("5 km").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
                 Spacer()
-                Text("50 km").font(.caption2).foregroundStyle(.secondary)
+                Text("50 km").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
             }
         }
-        .padding(14)
+        .padding(16)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(.rect(cornerRadius: 12))
-    }
-
-    // MARK: - Header Section
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Task Title").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            TextField("e.g., Help me move furniture", text: $title)
-                .font(.body).padding(14)
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(.rect(cornerRadius: 12))
-
-            Text("Category").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                ForEach(TaskCategory.allCases) { cat in
-                    Button {
-                        withAnimation(.spring(response: 0.3)) { category = cat }
-                    } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: cat.icon).font(.title3)
-                            Text(cat.rawValue).font(.caption2.weight(.medium))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(category == cat ? categoryColor(cat).opacity(0.15) : Color(.secondarySystemGroupedBackground))
-                        .foregroundStyle(category == cat ? categoryColor(cat) : .secondary)
-                        .clipShape(.rect(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(category == cat ? categoryColor(cat) : .clear, lineWidth: 2))
-                    }
-                    .sensoryFeedback(.selection, trigger: category)
-                }
-            }
-        }
-    }
-
-    // MARK: - Details Section
-    private var detailsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Description").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            TextField("Describe what you need help with...", text: $description, axis: .vertical)
-                .lineLimit(4...8).font(.body).padding(14)
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(.rect(cornerRadius: 12))
-        }
-    }
-
-    // MARK: - Budget Section
-    private var budgetSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Budget").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            HStack(spacing: 12) {
-                HStack(spacing: 4) {
-                    Text("₹").font(.title2.weight(.bold)).foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
-                    TextField("Amount", text: $budgetText)
-                        .keyboardType(.numberPad).font(.title2.weight(.semibold))
-                }
-                .padding(14).frame(maxWidth: .infinity)
-                .background(Color(.secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 12))
-
-                Toggle(isOn: $isNegotiable) {
-                    Text("Negotiable").font(.subheadline.weight(.medium))
-                }
-                .toggleStyle(.switch).tint(Color(red: 1.0, green: 0.45, blue: 0.0))
-                .padding(14).background(Color(.secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 12))
-            }
-        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
     }
 
     // MARK: - Location Section
     private var locationSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Location").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Text("Location").font(.system(.subheadline, design: .rounded, weight: .bold)).foregroundStyle(.secondary)
             Button { showLocationPicker = true } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: hasSetLocation ? "mappin.circle.fill" : "mappin.circle")
-                        .font(.title2)
-                        .foregroundStyle(hasSetLocation ? Color(red: 1.0, green: 0.45, blue: 0.0) : .secondary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(hasSetLocation ? "Location Set" : "Set Location").font(.headline).foregroundStyle(.primary)
-                        Text(hasSetLocation ? "Tap to update pin" : "Drop a pin on the map").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(hasSetLocation ? Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.15) : Color(.systemGray5))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: hasSetLocation ? "mappin.circle.fill" : "mappin.circle")
+                            .font(.title2)
+                            .foregroundStyle(hasSetLocation ? Color(red: 1.0, green: 0.45, blue: 0.0) : .secondary)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(hasSetLocation ? "Location Set" : "Set Location")
+                            .font(.system(.headline, design: .rounded, weight: .bold))
+                            .foregroundStyle(.primary)
+                        Text(hasSetLocation ? "Tap to update pin" : "Drop a pin on the map")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Image(systemName: "chevron.right").font(.subheadline).foregroundStyle(.tertiary)
+                    Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(.tertiary)
                 }
-                .padding(14).background(Color(.secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 12))
+                .padding(12)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
             }
         }
     }
@@ -202,7 +275,7 @@ struct PostTaskView: View {
                     ProgressView().tint(.white)
                 } else {
                     Image(systemName: "paperplane.fill")
-                    Text("Publish Request").font(.headline)
+                    Text("Publish Request").font(.system(.headline, design: .rounded, weight: .bold))
                 }
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
@@ -211,7 +284,9 @@ struct PostTaskView: View {
                     ? LinearGradient(colors: [Color(red: 1.0, green: 0.45, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)], startPoint: .leading, endPoint: .trailing)
                     : LinearGradient(colors: [Color(.systemGray4), Color(.systemGray4)], startPoint: .leading, endPoint: .trailing)
             )
-            .foregroundStyle(.white).clipShape(.rect(cornerRadius: 16))
+            .foregroundStyle(.white)
+            .clipShape(.capsule)
+            .shadow(color: isFormValid ? Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.3) : .clear, radius: 8, y: 4)
         }
         .disabled(!isFormValid || isPublishing)
         .padding(.top, 8)
@@ -261,6 +336,7 @@ struct LocationPickerView: View {
     @Binding var latitude: Double
     @Binding var longitude: Double
     @Binding var hasSetLocation: Bool
+    let radiusKm: Double
     let initialLocation: CLLocation?
     @Environment(\.dismiss) private var dismiss
 
@@ -272,6 +348,11 @@ struct LocationPickerView: View {
             ZStack(alignment: .center) {
                 Map(position: $cameraPosition) {
                     if let pin = pinCoordinate {
+                        // Live Radius Preview!
+                        MapCircle(center: pin, radius: radiusKm * 1000)
+                            .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.15))
+                            .stroke(Color(red: 1.0, green: 0.45, blue: 0.0), lineWidth: 2)
+                        
                         Annotation("Task Location", coordinate: pin) {
                             ZStack {
                                 Circle()
@@ -287,14 +368,15 @@ struct LocationPickerView: View {
                     UserAnnotation()
                 }
                 .mapStyle(.standard)
-                .onMapCameraChange(frequency: .onEnd) { context in
+                .onMapCameraChange(frequency: .continuous) { context in
                     pinCoordinate = context.region.center
                 }
 
                 // Crosshair fixed in the centre of the screen
                 Image(systemName: "plus")
-                    .font(.title3.weight(.light))
-                    .foregroundStyle(.secondary)
+                    .font(.title.weight(.light))
+                    .foregroundStyle(.black.opacity(0.6))
+                    .shadow(radius: 2)
             }
             .navigationTitle("Set Location")
             .navigationBarTitleDisplayMode(.inline)
@@ -311,23 +393,29 @@ struct LocationPickerView: View {
                         }
                         dismiss()
                     }
-                    .fontWeight(.semibold)
+                    .font(.headline)
+                    .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Text("Move the map to position the crosshair on your task location")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(12)
-                    .frame(maxWidth: .infinity)
-                    .background(.ultraThinMaterial)
+                VStack(spacing: 4) {
+                    Text("Move the map to position the crosshair.")
+                        .font(.subheadline.weight(.bold))
+                    Text("The circle shows your \(Int(radiusKm))km visibility radius.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity)
+                .background(.ultraThinMaterial)
             }
             .onAppear {
                 if let loc = initialLocation {
                     cameraPosition = .region(MKCoordinateRegion(
                         center: loc.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                        // Scale the initial zoom somewhat relative to the chosen radius
+                        span: MKCoordinateSpan(latitudeDelta: radiusKm * 0.015, longitudeDelta: radiusKm * 0.015)
                     ))
                     pinCoordinate = loc.coordinate
                 }
