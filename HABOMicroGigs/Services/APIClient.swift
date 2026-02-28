@@ -3,8 +3,7 @@
 
 import Foundation
 
-// MARK: - Change this URL every time Cloudflare restarts
-let API_BASE_URL = "https://supposed-beef-inns-empire.trycloudflare.com"
+let API_BASE_URL = "https://habo-backend.azurewebsites.net"
 
 enum APIError: LocalizedError {
     case invalidURL
@@ -26,12 +25,35 @@ enum APIError: LocalizedError {
 class APIClient {
     static let shared = APIClient()
     private let session = URLSession.shared
+    
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
-        d.dateDecodingStrategy = .iso8601
+        
+        d.dateDecodingStrategy = .custom { decoder -> Date in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            
+            let formatter = ISO8601DateFormatter()
+            
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot parse date string: \(dateString)"
+            )
+        }
         return d
     }()
+    
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.keyEncodingStrategy = .convertToSnakeCase
@@ -40,7 +62,6 @@ class APIClient {
 
     private init() {}
 
-    // MARK: - Token Storage
     var accessToken: String? {
         get { UserDefaults.standard.string(forKey: "habo_access_token") }
         set { UserDefaults.standard.set(newValue, forKey: "habo_access_token") }
@@ -50,7 +71,6 @@ class APIClient {
         UserDefaults.standard.removeObject(forKey: "habo_access_token")
     }
 
-    // MARK: - Generic Request Builder
     private func request<T: Decodable>(
         _ method: String,
         path: String,
@@ -95,8 +115,7 @@ class APIClient {
 
     // MARK: - Auth
     func loginWithGoogle(idToken: String, publicKey: String) async throws -> AuthResponse {
-        try await request("POST", path: "/auth/login",
-                          body: GoogleLoginRequest(idToken: idToken, publicKey: publicKey))
+        try await request("POST", path: "/auth/login", body: GoogleLoginRequest(idToken: idToken, publicKey: publicKey))
     }
 
     func getMe() async throws -> UserResponse {
@@ -113,6 +132,10 @@ class APIClient {
         return try await request("GET", path: "/tasks", queryItems: items)
     }
 
+    func getMyTasks() async throws -> [TaskResponse] {
+        try await request("GET", path: "/tasks/me")
+    }
+
     func postTask(_ payload: TaskCreateRequest) async throws -> TaskResponse {
         try await request("POST", path: "/tasks", body: payload)
     }
@@ -121,14 +144,18 @@ class APIClient {
         try await request("POST", path: "/tasks/\(taskId)/accept")
     }
 
-    func completeTask(taskId: String) async throws -> TaskResponse {
-        try await request("POST", path: "/tasks/\(taskId)/complete")
+    // ✅ FIXED: Takes the code here
+    func completeTask(taskId: String, code: String) async throws -> TaskResponse {
+        try await request(
+            "POST",
+            path: "/tasks/\(taskId)/complete",
+            queryItems: [URLQueryItem(name: "code", value: code)]
+        )
     }
-
+    
     // MARK: - Users
     func searchUsers(query: String) async throws -> [UserSearchResult] {
-        try await request("GET", path: "/users/search",
-                          queryItems: [URLQueryItem(name: "q", value: query)])
+        try await request("GET", path: "/users/search", queryItems: [URLQueryItem(name: "q", value: query)])
     }
 
     func getUserProfile(userId: String) async throws -> UserProfileResponse {
@@ -145,35 +172,22 @@ class APIClient {
 
     // MARK: - Chat
     func sendMessage(taskId: String, ciphertext: String, nonce: String) async throws -> MessageResponse {
-        try await request("POST", path: "/chat/messages",
-                          body: SendMessageRequest(taskId: taskId, ciphertext: ciphertext, nonce: nonce))
+        try await request("POST", path: "/chat/messages", body: SendMessageRequest(taskId: taskId, ciphertext: ciphertext, nonce: nonce))
     }
 
     func getMessages(taskId: String) async throws -> [MessageResponse] {
         try await request("GET", path: "/chat/messages/\(taskId)")
     }
 
-    // MARK: - Payments (Razorpay Test Mode)
+    // MARK: - Payments
     func createPaymentOrder(taskId: String, amountPaise: Int) async throws -> PaymentOrderResponse {
-        try await request("POST", path: "/payments/create-order",
-                          body: CreateOrderRequest(taskId: taskId, amountPaise: amountPaise))
+        try await request("POST", path: "/payments/create-order", body: CreateOrderRequest(taskId: taskId, amountPaise: amountPaise))
     }
 
-    func verifyPayment(
-        taskId: String,
-        orderId: String,
-        paymentId: String,
-        signature: String
-    ) async throws {
+    func verifyPayment(taskId: String, orderId: String, paymentId: String, signature: String) async throws {
         let _: [String: Bool] = try await request(
-            "POST",
-            path: "/payments/verify",
-            body: VerifyPaymentRequest(
-                taskId: taskId,
-                razorpayOrderId: orderId,
-                razorpayPaymentId: paymentId,
-                razorpaySignature: signature
-            )
+            "POST", path: "/payments/verify",
+            body: VerifyPaymentRequest(taskId: taskId, razorpayOrderId: orderId, razorpayPaymentId: paymentId, razorpaySignature: signature)
         )
     }
 }

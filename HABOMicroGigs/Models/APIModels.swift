@@ -79,6 +79,9 @@ struct TaskResponse: Decodable, Identifiable {
     let longitude: Double
     let radiusMetres: Int
     let status: String
+    
+    let completionCode: String?
+    
     let createdAt: Date
     let creatorName: String
     let creatorId: UUID
@@ -90,6 +93,7 @@ struct TaskAcceptResponse: Decodable {
     let acceptedBy: String
     let status: String
     let chatUnlocked: Bool
+    let completionCode: String // ✅ This MUST be here to receive the code instantly!
 }
 
 // MARK: - Chat
@@ -101,19 +105,12 @@ struct SendMessageRequest: Encodable {
 
 struct MessageResponse: Decodable, Identifiable {
     let id: UUID
-    let taskId: UUID? // ✅ Made optional to prevent decoding crashes
+    let taskId: UUID?
     let senderId: UUID
     let ciphertext: String
     let nonce: String
     let sentAt: Date
     var plaintext: String? = nil
-
-    enum CodingKeys: String, CodingKey {
-        case id, ciphertext, nonce
-        case taskId = "task_id"
-        case senderId = "sender_id"
-        case sentAt = "sent_at"
-    }
 }
 
 // MARK: - Payments

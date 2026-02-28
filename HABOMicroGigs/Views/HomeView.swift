@@ -10,6 +10,9 @@ struct HomeView: View {
     @State private var showMapView: Bool = true
     @State private var mapPosition: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var selectedTaskForDetail: TaskResponse?
+    
+    // ✅ This namespace drives the fluid sliding animation for the filters
+    @Namespace private var animation
 
     var body: some View {
         NavigationStack {
@@ -22,17 +25,7 @@ struct HomeView: View {
             }
             .navigationTitle("HABO")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "location.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
-                        Text(locationService.placeName)
-                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                    }
-                }
-            }
+            // ✅ Removed the bulky location toolbar item completely
             .safeAreaInset(edge: .top) {
                 // Top controls (Categories + View Toggle) floating over map/list
                 VStack(spacing: 12) {
@@ -54,7 +47,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Category Pills
+    // MARK: - Category Pills (Fluid Animation)
     private var categoryPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
@@ -62,11 +55,14 @@ struct HomeView: View {
                 CategoryPillView(
                     title: "All",
                     icon: "square.grid.2x2.fill",
-                    color: .primary,
+                    color: Color(red: 1.0, green: 0.45, blue: 0.0), // HABO Orange
                     count: taskViewModel.tasks.filter { $0.status == "Active" }.count,
-                    isSelected: taskViewModel.filterCategory == nil
+                    isSelected: taskViewModel.filterCategory == nil,
+                    animation: animation
                 ) {
-                    taskViewModel.filterCategory = nil
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        taskViewModel.filterCategory = nil
+                    }
                     Task { await taskViewModel.fetchTasks(location: locationService.location) }
                 }
 
@@ -77,9 +73,12 @@ struct HomeView: View {
                         icon: category.icon,
                         color: categoryColor(category.rawValue),
                         count: taskViewModel.tasks.filter { $0.status == "Active" && $0.category == category.rawValue }.count,
-                        isSelected: taskViewModel.filterCategory == category.rawValue
+                        isSelected: taskViewModel.filterCategory == category.rawValue,
+                        animation: animation
                     ) {
-                        taskViewModel.filterCategory = category.rawValue
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            taskViewModel.filterCategory = category.rawValue
+                        }
                         Task { await taskViewModel.fetchTasks(location: locationService.location) }
                     }
                 }
@@ -179,7 +178,6 @@ struct HomeView: View {
             }
             
             Button {
-                // If you want this to jump to tab 1 (Post Tab), you can observe this Notification in ContentView
                 NotificationCenter.default.post(name: NSNotification.Name("SwitchToPostTab"), object: nil)
             } label: {
                 HStack {
@@ -220,6 +218,7 @@ struct CategoryPillView: View {
     let color: Color
     let count: Int
     let isSelected: Bool
+    let animation: Namespace.ID // ✅ Passed in for the slide effect
     let action: () -> Void
 
     var body: some View {
@@ -239,11 +238,23 @@ struct CategoryPillView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(isSelected ? color : Color(.secondarySystemBackground))
             .foregroundStyle(isSelected ? .white : color)
-            .clipShape(.capsule)
-            .shadow(color: isSelected ? color.opacity(0.3) : .clear, radius: 4, y: 2)
+            .background {
+                // ✅ The magic sliding background
+                ZStack {
+                    if isSelected {
+                        Capsule()
+                            .fill(color)
+                            .matchedGeometryEffect(id: "pillBackground", in: animation)
+                            .shadow(color: color.opacity(0.3), radius: 4, y: 2)
+                    } else {
+                        Capsule()
+                            .fill(Color(.secondarySystemBackground))
+                    }
+                }
+            }
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -301,7 +312,7 @@ struct TaskCardView: View {
     private var distanceString: String {
         guard let loc = currentLocation else { return "Nearby" }
         let taskLoc = CLLocation(latitude: task.latitude, longitude: task.longitude)
-        let distance = loc.distance(from: taskLoc) // in meters
+        let distance = loc.distance(from: taskLoc)
         if distance < 1000 {
             return "\(Int(distance))m away"
         } else {
@@ -312,7 +323,6 @@ struct TaskCardView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack(alignment: .top, spacing: 14) {
-                // Icon
                 ZStack {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(categoryColor.opacity(0.12))
@@ -322,10 +332,8 @@ struct TaskCardView: View {
                         .foregroundStyle(categoryColor)
                 }
                 
-                // Content
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        // Title with Active Dot
                         Circle()
                             .fill(Color.green)
                             .frame(width: 8, height: 8)
@@ -352,7 +360,6 @@ struct TaskCardView: View {
                 
                 Spacer()
                 
-                // Budget
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("₹\(task.budget)")
                         .font(.system(.title3, design: .rounded, weight: .bold))
@@ -372,7 +379,6 @@ struct TaskCardView: View {
             
             Divider()
             
-            // Footer (Distance & Time)
             HStack {
                 Label(distanceString, systemImage: "location.fill")
                     .font(.caption.weight(.medium))

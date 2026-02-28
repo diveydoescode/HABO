@@ -20,7 +20,8 @@ struct TaskDetailView: View {
     @State private var currentStatus: String = ""
     @State private var showChat: Bool = false
     
-    // Mock unread count for UI purposes
+    @State private var enteredCode: String = ""
+    @State private var dynamicCompletionCode: String? = nil // ✅ Dynamic state for UI updates
     @State private var unreadMessagesCount: Int = Int.random(in: 0...3)
 
     private var categoryColor: Color {
@@ -35,7 +36,7 @@ struct TaskDetailView: View {
     private var statusColor: Color {
         switch currentStatus {
         case "Active": return .green
-        case "Accepted": return Color(red: 1.0, green: 0.45, blue: 0.0) // Orange
+        case "Accepted": return Color(red: 1.0, green: 0.45, blue: 0.0)
         case "Completed": return .gray
         default: return .red
         }
@@ -89,43 +90,43 @@ struct TaskDetailView: View {
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .padding(.top, 4)
+                            
+                        if currentStatus != "Completed" {
+                            Button {
+                                openInAppleMaps()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "location.fill")
+                                    Text("Get Directions")
+                                }
+                                .font(.system(.subheadline, design: .rounded, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.blue)
+                                .clipShape(.capsule)
+                            }
+                        }
                     }
                     .padding(20)
                     .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
-                    .padding(.top, -24) // Overlap the map
+                    .padding(.top, -24)
                     
-                    // Task Timeline
                     TaskTimelineView(status: currentStatus)
                         .padding(.horizontal, 4)
 
-                    // Profile Card (Creator or Acceptor)
                     if let profile = otherUserProfile {
                         UserProfileCardView(
                             title: isOwner ? "Task Accepted By" : "Task Posted By",
                             profile: profile
                         )
-                    } else if !isOwner {
-                        // Fallback Creator Info if profile not loaded yet
-                        HStack {
-                            Image(systemName: "person.circle.fill").font(.title).foregroundStyle(.secondary)
-                            VStack(alignment: .leading) {
-                                Text("Posted by").font(.caption).foregroundStyle(.secondary)
-                                Text(task.creatorName).font(.subheadline.weight(.semibold))
-                            }
-                            Spacer()
-                            ProgressView()
-                        }
-                        .padding(16)
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
 
                     // Action Buttons Area
                     VStack(spacing: 12) {
                         
-                        // Accept Button
                         if canAccept {
                             Button {
                                 showAcceptConfirmation = true
@@ -151,30 +152,20 @@ struct TaskDetailView: View {
                                 Button("Accept Task") { Task { await acceptTask() } }
                                 Button("Cancel", role: .cancel) {}
                             } message: {
-                                Text("You'll be assigned to \"\(task.title)\" for ₹\(task.budget). A 10–15% platform fee applies on completion.")
+                                Text("You'll be assigned to \"\(task.title)\" for ₹\(task.budget).")
                             }
                         }
 
-                        // Open Chat Button
                         if chatIsUnlocked {
                             Button {
-                                unreadMessagesCount = 0 // clear mock badge
+                                unreadMessagesCount = 0
                                 showChat = true
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: "lock.fill").font(.caption).foregroundStyle(.green)
                                     Text("Encrypted Chat").font(.system(.headline, design: .rounded, weight: .bold))
                                     Spacer()
-                                    
-                                    if unreadMessagesCount > 0 {
-                                        Text("\(unreadMessagesCount) New")
-                                            .font(.caption2.weight(.bold))
-                                            .padding(.horizontal, 8).padding(.vertical, 4)
-                                            .background(.red).foregroundStyle(.white)
-                                            .clipShape(.capsule)
-                                    } else {
-                                        Image(systemName: "chevron.right").font(.subheadline).foregroundStyle(.secondary)
-                                    }
+                                    Image(systemName: "chevron.right").font(.subheadline).foregroundStyle(.secondary)
                                 }
                                 .frame(maxWidth: .infinity).padding(.horizontal, 20).padding(.vertical, 16)
                                 .background(Color(.secondarySystemGroupedBackground))
@@ -184,44 +175,67 @@ struct TaskDetailView: View {
                             }
                         }
 
-                        // Pay Button
-                        if canPay {
-                            Button {
-                                showPaymentConfirmation = true
-                            } label: {
-                                HStack(spacing: 10) {
-                                    if isPaying {
-                                        ProgressView().tint(.white)
-                                        Text("Processing...").font(.headline)
-                                    } else {
-                                        Image(systemName: "indianrupeesign.circle.fill")
-                                        Text("Complete & Pay ₹\(task.budget)")
-                                            .font(.system(.headline, design: .rounded, weight: .bold))
-                                    }
+                        if currentStatus == "Accepted" {
+                            if !isOwner {
+                                VStack(spacing: 8) {
+                                    Text("Provide this code to the poster when finished:")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    
+                                    // ✅ FIXED: Instantly updates via State when code arrives
+                                    Text(dynamicCompletionCode ?? "ERROR")
+                                        .font(.system(.title, design: .monospaced, weight: .black))
+                                        .tracking(10)
+                                        .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
                                 }
-                                .frame(maxWidth: .infinity).padding(.vertical, 16)
-                                .background(Color.black)
-                                .foregroundStyle(.white).clipShape(.capsule)
-                                .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-                            }
-                            .disabled(isPaying || paymentSuccess)
-                            .confirmationDialog("Confirm Payment", isPresented: $showPaymentConfirmation) {
-                                Button("Pay ₹\(task.budget)") { Task { await initiatePayment() } }
-                                Button("Cancel", role: .cancel) {}
-                            } message: {
-                                Text("You are about to transfer ₹\(task.budget) to the task acceptor. This action cannot be undone.")
-                            }
-                            
-                            Text("Powered by Razorpay • Test Mode")
-                                .font(.caption2).foregroundStyle(.secondary)
-
-                            if let err = paymentError {
-                                Text(err).font(.caption).foregroundStyle(.red)
-                                    .padding(10).background(Color.red.opacity(0.1)).clipShape(.rect(cornerRadius: 8))
+                                .padding(16)
+                                .frame(maxWidth: .infinity)
+                                .background(Color(.secondarySystemGroupedBackground))
+                                .clipShape(.rect(cornerRadius: 16, style: .continuous))
+                                
+                            } else if canPay {
+                                VStack(spacing: 12) {
+                                    Text("Enter the 6-digit code from the task doer to complete the gig and initiate payment.")
+                                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                                        
+                                    TextField("000000", text: $enteredCode)
+                                        .keyboardType(.numberPad)
+                                        .font(.system(.title, design: .monospaced, weight: .bold))
+                                        .multilineTextAlignment(.center)
+                                        .padding()
+                                        .background(Color(.systemGray6))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    
+                                    Button {
+                                        Task { await initiatePayment() }
+                                    } label: {
+                                        HStack(spacing: 10) {
+                                            if isPaying {
+                                                ProgressView().tint(.white)
+                                                Text("Verifying...").font(.headline)
+                                            } else {
+                                                Image(systemName: "checkmark.shield.fill")
+                                                Text("Verify Code & Pay ₹\(task.budget)")
+                                                    .font(.system(.headline, design: .rounded, weight: .bold))
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity).padding(.vertical, 16)
+                                        .background(enteredCode.count == 6 ? Color.black : Color.gray)
+                                        .foregroundStyle(.white).clipShape(.capsule)
+                                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                                    }
+                                    .disabled(isPaying || paymentSuccess || enteredCode.count != 6)
+                                }
+                                .padding(16)
+                                .background(Color(.secondarySystemGroupedBackground))
+                                .clipShape(.rect(cornerRadius: 16, style: .continuous))
+                                
+                                if let err = paymentError {
+                                    Text(err).font(.caption).foregroundStyle(.red)
+                                        .padding(10).background(Color.red.opacity(0.1)).clipShape(.rect(cornerRadius: 8))
+                                }
                             }
                         }
 
-                        // Payment Success
                         if paymentSuccess {
                             HStack(spacing: 10) {
                                 Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).font(.title3)
@@ -242,6 +256,7 @@ struct TaskDetailView: View {
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .onAppear {
             currentStatus = task.status
+            dynamicCompletionCode = task.completionCode // ✅ Loads code when opened
             Task { await fetchOtherUserProfile() }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -264,7 +279,14 @@ struct TaskDetailView: View {
         }
     }
 
-    // MARK: - Map Preview
+    private func openInAppleMaps() {
+        let coordinate = CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude)
+        let placemark = MKPlacemark(coordinate: coordinate)
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = task.title
+        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+    }
+
     private var mapPreview: some View {
         Map(initialPosition: .region(MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude),
@@ -281,14 +303,15 @@ struct TaskDetailView: View {
         .mapStyle(.standard).frame(height: 250).allowsHitTesting(false)
     }
 
-    // MARK: - API Calls
     private func acceptTask() async {
         isAccepting = true
-        // ✅ FIXED: Passed currentUser here instead of currentUser.name
-        let success = await taskViewModel.acceptTask(taskId: task.id, by: currentUser)
-        if success {
+        // ✅ Updates state seamlessly when task is assigned
+        if let newCode = await taskViewModel.acceptTask(taskId: task.id, by: currentUser) {
             hasAccepted = true
             currentStatus = "Accepted"
+            dynamicCompletionCode = newCode
+            
+            await taskViewModel.fetchTasks(location: nil)
             await fetchOtherUserProfile()
         }
         isAccepting = false
@@ -315,14 +338,22 @@ struct TaskDetailView: View {
     private func initiatePayment() async {
         isPaying = true
         paymentError = nil
-        do {
-            let order = try await APIClient.shared.createPaymentOrder(
-                taskId: task.id.uuidString,
-                amountPaise: task.budget * 100
-            )
-            await processTestPayment(order: order)
-        } catch {
-            paymentError = "Could not initiate payment: \(error.localizedDescription)"
+        
+        let verified = await taskViewModel.completeTask(taskId: task.id, code: enteredCode)
+        
+        if verified {
+            do {
+                let order = try await APIClient.shared.createPaymentOrder(
+                    taskId: task.id.uuidString,
+                    amountPaise: task.budget * 100
+                )
+                await processTestPayment(order: order)
+            } catch {
+                paymentError = "Could not initiate payment: \(error.localizedDescription)"
+                isPaying = false
+            }
+        } else {
+            paymentError = "Verification Failed. Check the 6-digit code."
             isPaying = false
         }
     }
@@ -361,10 +392,8 @@ struct TaskDetailView: View {
 }
 
 // MARK: - Subviews
-
 struct TaskTimelineView: View {
     let status: String
-    
     private var step2Active: Bool { status == "Accepted" || status == "Completed" }
     private var step3Active: Bool { status == "Completed" }
     
@@ -399,7 +428,6 @@ struct TimelineNode: View {
                 
                 Image(systemName: isCompleted ? "checkmark" : icon)
                     .font(.system(size: 14, weight: .bold))
-                    // FIX: Wrapped in AnyShapeStyle to match types
                     .foregroundStyle(isActive ? AnyShapeStyle(.white) : AnyShapeStyle(.tertiary))
             }
             Text(title)
@@ -416,7 +444,7 @@ struct TimelineLine: View {
         Rectangle()
             .fill(isActive ? Color(red: 1.0, green: 0.45, blue: 0.0) : Color(.systemGray5))
             .frame(height: 3)
-            .offset(y: -12) // Align with circles
+            .offset(y: -12)
     }
 }
 
@@ -432,7 +460,6 @@ struct UserProfileCardView: View {
                 .textCase(.uppercase)
             
             HStack(spacing: 16) {
-                // Avatar
                 ZStack {
                     Circle()
                         .fill(LinearGradient(colors: [Color(red: 1.0, green: 0.45, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)], startPoint: .topLeading, endPoint: .bottomTrailing))

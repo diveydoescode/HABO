@@ -17,20 +17,22 @@ class TaskViewModel {
         return active
     }
 
-    // MARK: - Fetch tasks for viewer's location
+    // MARK: - Fetch tasks
     func fetchTasks(location: CLLocation?) async {
         isLoading = true
         errorMessage = nil
-        // Default to Jaipur if no location yet
         let lat = location?.coordinate.latitude ?? 26.9124
         let lon = location?.coordinate.longitude ?? 75.7873
 
         do {
-            tasks = try await APIClient.shared.getTasks(
-                lat: lat,
-                lon: lon,
-                category: filterCategory
-            )
+            let mapTasks = try await APIClient.shared.getTasks(lat: lat, lon: lon, category: filterCategory)
+            let myTasks = try await APIClient.shared.getMyTasks()
+            
+            var mergedDict = [UUID: TaskResponse]()
+            for t in mapTasks { mergedDict[t.id] = t }
+            for t in myTasks { mergedDict[t.id] = t }
+            
+            self.tasks = mergedDict.values.sorted { $0.createdAt > $1.createdAt }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -38,27 +40,9 @@ class TaskViewModel {
     }
 
     // MARK: - Post new task
-    func addTask(
-        title: String,
-        category: String,
-        description: String,
-        budget: Int,
-        isNegotiable: Bool,
-        latitude: Double,
-        longitude: Double,
-        radiusMetres: Int
-    ) async -> Bool {
+    func addTask(title: String, category: String, description: String, budget: Int, isNegotiable: Bool, latitude: Double, longitude: Double, radiusMetres: Int) async -> Bool {
         do {
-            let request = TaskCreateRequest(
-                title: title,
-                category: category,
-                description: description,
-                budget: budget,
-                isNegotiable: isNegotiable,
-                latitude: latitude,
-                longitude: longitude,
-                radiusMetres: radiusMetres
-            )
+            let request = TaskCreateRequest(title: title, category: category, description: description, budget: budget, isNegotiable: isNegotiable, latitude: latitude, longitude: longitude, radiusMetres: radiusMetres)
             let newTask = try await APIClient.shared.postTask(request)
             tasks.insert(newTask, at: 0)
             return true
@@ -68,36 +52,38 @@ class TaskViewModel {
         }
     }
 
-    // MARK: - Accept task (unlocks chat)
-    // ✅ FIXED: Now takes the full UserResponse to grab your correct ID
-    func acceptTask(taskId: UUID, by user: UserResponse) async -> Bool {
+    // MARK: - Accept task
+    // ✅ CHANGED: Now returns the dynamically generated 6-digit code!
+    func acceptTask(taskId: UUID, by user: UserResponse) async -> String? {
         do {
             let response = try await APIClient.shared.acceptTask(taskId: taskId.uuidString)
-            // Update local state to reflect accepted status
             if let index = tasks.firstIndex(where: { $0.id == taskId }) {
-                // TaskResponse is a struct so we rebuild it with updated status
                 let old = tasks[index]
                 tasks[index] = TaskResponse(
                     id: old.id, title: old.title, category: old.category,
                     description: old.description, budget: old.budget,
                     isNegotiable: old.isNegotiable, latitude: old.latitude,
                     longitude: old.longitude, radiusMetres: old.radiusMetres,
-                    status: response.status, createdAt: old.createdAt,
+                    status: response.status,
+                    completionCode: response.completionCode, // ✅ Fully maps the new code
+                    createdAt: old.createdAt,
                     creatorName: old.creatorName, creatorId: old.creatorId,
-                    acceptedById: user.id // ✅ Correctly sets your User ID locally!
+                    acceptedById: user.id
                 )
             }
-            return response.chatUnlocked
+            return response.completionCode
         } catch {
             errorMessage = error.localizedDescription
-            return false
+            return nil
         }
     }
 
-    // MARK: - Complete task (triggers payment flow)
-    func completeTask(taskId: UUID) async -> Bool {
+    // MARK: - Complete task
+    // ✅ FIXED: Now properly handles the code parameter
+    func completeTask(taskId: UUID, code: String) async -> Bool {
         do {
-            let updated = try await APIClient.shared.completeTask(taskId: taskId.uuidString)
+            let updated = try await APIClient.shared.completeTask(taskId: taskId.uuidString, code: code)
+                
             if let index = tasks.firstIndex(where: { $0.id == taskId }) {
                 tasks[index] = updated
             }
@@ -107,7 +93,7 @@ class TaskViewModel {
             return false
         }
     }
-
+    
     func tasksPostedBy(userId: UUID) -> [TaskResponse] {
         tasks.filter { $0.creatorId == userId }
     }

@@ -31,7 +31,6 @@ struct ChatView: View {
                 messageList
             }
 
-            // ✅ ERROR BANNER ADDED HERE to tell you why it's stuck!
             if let err = errorMessage {
                 Text(err)
                     .font(.caption2.weight(.bold))
@@ -119,7 +118,8 @@ struct ChatView: View {
                 if msg.senderId != currentUserId {
                     m.plaintext = try? CryptoService.shared.decrypt(ciphertextB64: msg.ciphertext, nonceB64: msg.nonce, senderPublicKeyB64: recipientPublicKey)
                 } else {
-                    m.plaintext = msg.plaintext ?? "🔒"
+                    // ✅ Looks up your own sent messages from device memory!
+                    m.plaintext = getCachedText(for: msg.id) ?? "🔒"
                 }
                 return m
             }
@@ -127,9 +127,7 @@ struct ChatView: View {
             if messages.count != fetched.count {
                 await MainActor.run { messages = fetched }
             }
-        } catch {
-            // Don't show errors on polling failure to avoid annoying the user
-        }
+        } catch { }
         isLoading = false
     }
 
@@ -137,7 +135,7 @@ struct ChatView: View {
         let text = inputText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
         isSending = true
-        errorMessage = nil // Clear previous errors
+        errorMessage = nil
         let tempText = inputText
         inputText = ""
 
@@ -149,12 +147,14 @@ struct ChatView: View {
                 nonce: encrypted.nonce
             )
             sent.plaintext = text
+            // ✅ Saves the text you just typed to the device memory
+            cacheText(text, for: sent.id)
             messages.append(sent)
-            isSending = false // ✅ FIX: Stop spinning on success!
+            isSending = false
         } catch {
             inputText = tempText
             errorMessage = error.localizedDescription
-            isSending = false // ✅ FIX: Stop spinning on failure and show error!
+            isSending = false
         }
     }
 
@@ -166,6 +166,18 @@ struct ChatView: View {
             }
         }
     }
+    
+    // MARK: - Local Message Cache
+    private func getCachedText(for id: UUID) -> String? {
+        let cache = UserDefaults.standard.dictionary(forKey: "habo_sent_messages") as? [String: String] ?? [:]
+        return cache[id.uuidString]
+    }
+    
+    private func cacheText(_ text: String, for id: UUID) {
+        var cache = UserDefaults.standard.dictionary(forKey: "habo_sent_messages") as? [String: String] ?? [:]
+        cache[id.uuidString] = text
+        UserDefaults.standard.set(cache, forKey: "habo_sent_messages")
+    }
 }
 
 struct MessageBubble: View {
@@ -176,7 +188,7 @@ struct MessageBubble: View {
         HStack {
             if isMine { Spacer(minLength: 50) }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
-                Text(message.plaintext ?? "🔒 Encrypted")
+                Text(message.plaintext ?? "🔒")
                     .font(.body)
                     .foregroundStyle(isMine ? .white : .primary)
                     .padding(.horizontal, 16).padding(.vertical, 12)
