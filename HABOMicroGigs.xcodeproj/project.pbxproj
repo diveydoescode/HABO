@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		EA0A5A8B2F4B3C3C00EF192E /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = EA0A5A8A2F4B3C3C00EF192E /* GoogleSignIn */; };
+		EA3411402F53069E00060106 /* RazorpayCheckout in Frameworks */ = {isa = PBXBuildFile; productRef = EA34113F2F53069E00060106 /* RazorpayCheckout */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA3411402F53069E00060106 /* RazorpayCheckout in Frameworks */,
 				EA0A5A8B2F4B3C3C00EF192E /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -131,6 +133,7 @@
 			name = HABOMicroGigs;
 			packageProductDependencies = (
 				EA0A5A8A2F4B3C3C00EF192E /* GoogleSignIn */,
+				EA34113F2F53069E00060106 /* RazorpayCheckout */,
 			);
 			productName = HABOMicroGigs;
 			productReference = 105FC57A2E9EAD3100EA8BCF /* HABOMicroGigs.app */;
@@ -216,6 +219,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				EA0A5A892F4B3C3C00EF192E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				EA34113E2F53069E00060106 /* XCRemoteSwiftPackageReference "razorpay-pod" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 105FC57B2E9EAD3100EA8BCF /* Products */;
@@ -620,6 +624,14 @@
 				minimumVersion = 9.1.0;
 			};
 		};
+		EA34113E2F53069E00060106 /* XCRemoteSwiftPackageReference "razorpay-pod" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/razorpay/razorpay-pod.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -627,6 +639,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EA0A5A892F4B3C3C00EF192E /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
+		};
+		EA34113F2F53069E00060106 /* RazorpayCheckout */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EA34113E2F53069E00060106 /* XCRemoteSwiftPackageReference "razorpay-pod" */;
+			productName = RazorpayCheckout;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -93,7 +93,7 @@ struct TaskAcceptResponse: Decodable {
     let acceptedBy: String
     let status: String
     let chatUnlocked: Bool
-    let completionCode: String // ✅ This MUST be here to receive the code instantly!
+    let completionCode: String
 }
 
 // MARK: - Chat
@@ -134,3 +134,9 @@ struct PaymentOrderResponse: Decodable {
 }
 
 typealias RazorpayOrder = PaymentOrderResponse
+
+// ✅ NEW: Strict decoder for the Python verification response
+struct VerifyPaymentResponse: Decodable {
+    let success: Bool
+    let message: String
+}

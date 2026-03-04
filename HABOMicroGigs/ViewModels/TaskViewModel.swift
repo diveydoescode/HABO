@@ -53,7 +53,6 @@ class TaskViewModel {
     }
 
     // MARK: - Accept task
-    // ✅ CHANGED: Now returns the dynamically generated 6-digit code!
     func acceptTask(taskId: UUID, by user: UserResponse) async -> String? {
         do {
             let response = try await APIClient.shared.acceptTask(taskId: taskId.uuidString)
@@ -65,7 +64,7 @@ class TaskViewModel {
                     isNegotiable: old.isNegotiable, latitude: old.latitude,
                     longitude: old.longitude, radiusMetres: old.radiusMetres,
                     status: response.status,
-                    completionCode: response.completionCode, // ✅ Fully maps the new code
+                    completionCode: response.completionCode,
                     createdAt: old.createdAt,
                     creatorName: old.creatorName, creatorId: old.creatorId,
                     acceptedById: user.id
@@ -79,13 +78,26 @@ class TaskViewModel {
     }
 
     // MARK: - Complete task
-    // ✅ FIXED: Now properly handles the code parameter
     func completeTask(taskId: UUID, code: String) async -> Bool {
         do {
             let updated = try await APIClient.shared.completeTask(taskId: taskId.uuidString, code: code)
                 
             if let index = tasks.firstIndex(where: { $0.id == taskId }) {
                 tasks[index] = updated
+            }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+    
+    // ✅ NEW: Delete task
+    func deleteTask(taskId: UUID) async -> Bool {
+        do {
+            try await APIClient.shared.deleteTask(taskId: taskId.uuidString)
+            if let index = tasks.firstIndex(where: { $0.id == taskId }) {
+                tasks.remove(at: index)
             }
             return true
         } catch {

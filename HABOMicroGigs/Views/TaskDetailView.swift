@@ -12,7 +12,11 @@ struct TaskDetailView: View {
     @State private var showPaymentConfirmation: Bool = false
     @State private var hasAccepted: Bool = false
     @State private var isAccepting: Bool = false
+    
     @State private var isPaying: Bool = false
+    // ✅ 1. Added Razorpay Handler
+    @StateObject private var razorpayHandler = RazorpayHandler()
+    
     @State private var recipientPublicKey: String? = nil
     @State private var otherUserProfile: UserProfileResponse? = nil
     @State private var paymentError: String? = nil
@@ -21,8 +25,11 @@ struct TaskDetailView: View {
     @State private var showChat: Bool = false
     
     @State private var enteredCode: String = ""
-    @State private var dynamicCompletionCode: String? = nil // ✅ Dynamic state for UI updates
+    @State private var dynamicCompletionCode: String? = nil
     @State private var unreadMessagesCount: Int = Int.random(in: 0...3)
+    
+    @State private var showDeleteConfirmation: Bool = false
+    @State private var isDeleting: Bool = false
 
     private var categoryColor: Color {
         switch task.category {
@@ -181,7 +188,6 @@ struct TaskDetailView: View {
                                     Text("Provide this code to the poster when finished:")
                                         .font(.caption).foregroundStyle(.secondary)
                                     
-                                    // ✅ FIXED: Instantly updates via State when code arrives
                                     Text(dynamicCompletionCode ?? "ERROR")
                                         .font(.system(.title, design: .monospaced, weight: .black))
                                         .tracking(10)
@@ -248,6 +254,33 @@ struct TaskDetailView: View {
                             .padding(16).background(Color.green.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
+                        
+                        if isOwner {
+                            Button {
+                                showDeleteConfirmation = true
+                            } label: {
+                                HStack(spacing: 10) {
+                                    if isDeleting {
+                                        ProgressView().tint(.red)
+                                    } else {
+                                        Image(systemName: "trash.fill")
+                                        Text("Delete Task").font(.system(.headline, design: .rounded, weight: .bold))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity).padding(.vertical, 16)
+                                .background(Color.red.opacity(0.1))
+                                .foregroundStyle(.red).clipShape(.capsule)
+                            }
+                            .disabled(isDeleting)
+                            .confirmationDialog("Delete Task?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                                Button("Delete", role: .destructive) {
+                                    Task { await deleteThisTask() }
+                                }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("Are you sure you want to delete this task? This will also delete any encrypted chat history. This cannot be undone.")
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 16).padding(.bottom, 30)
@@ -256,7 +289,7 @@ struct TaskDetailView: View {
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .onAppear {
             currentStatus = task.status
-            dynamicCompletionCode = task.completionCode // ✅ Loads code when opened
+            dynamicCompletionCode = task.completionCode
             Task { await fetchOtherUserProfile() }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -305,7 +338,6 @@ struct TaskDetailView: View {
 
     private func acceptTask() async {
         isAccepting = true
-        // ✅ Updates state seamlessly when task is assigned
         if let newCode = await taskViewModel.acceptTask(taskId: task.id, by: currentUser) {
             hasAccepted = true
             currentStatus = "Accepted"
@@ -335,38 +367,59 @@ struct TaskDetailView: View {
         }
     }
 
+    // ✅ 2. Updated initiatePayment to pass the dynamic keyId
     private func initiatePayment() async {
         isPaying = true
         paymentError = nil
         
         let verified = await taskViewModel.completeTask(taskId: task.id, code: enteredCode)
         
-        if verified {
-            do {
-                let order = try await APIClient.shared.createPaymentOrder(
-                    taskId: task.id.uuidString,
-                    amountPaise: task.budget * 100
-                )
-                await processTestPayment(order: order)
-            } catch {
-                paymentError = "Could not initiate payment: \(error.localizedDescription)"
-                isPaying = false
-            }
-        } else {
+        guard verified else {
             paymentError = "Verification Failed. Check the 6-digit code."
+            isPaying = false
+            return
+        }
+        
+        do {
+            let order = try await APIClient.shared.createPaymentOrder(
+                taskId: task.id.uuidString,
+                amountPaise: task.budget * 100
+            )
+            
+            razorpayHandler.onSuccess = { paymentId, orderId, signature in
+                Task {
+                    await finalizeVerificationWithBackend(paymentId: paymentId, orderId: orderId, signature: signature)
+                }
+            }
+            
+            razorpayHandler.onError = { errorString in
+                self.paymentError = errorString
+                self.isPaying = false
+            }
+            
+            // ✅ Safely passes the API key sent dynamically from Azure
+            razorpayHandler.startPayment(
+                orderId: order.razorpayOrderId,
+                amountPaise: order.amountPaise,
+                keyId: order.keyId,
+                email: currentUser.email,
+                contact: "9999999999"
+            )
+            
+        } catch {
+            paymentError = "Could not initiate payment: \(error.localizedDescription)"
             isPaying = false
         }
     }
 
-    private func processTestPayment(order: PaymentOrderResponse) async {
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
-        let fakePaymentId = "pay_test_\(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(14))"
+    // ✅ 3. Replaced processTestPayment with finalizeVerificationWithBackend
+    private func finalizeVerificationWithBackend(paymentId: String, orderId: String, signature: String) async {
         do {
             try await APIClient.shared.verifyPayment(
                 taskId: task.id.uuidString,
-                orderId: order.razorpayOrderId,
-                paymentId: fakePaymentId,
-                signature: "test_signature_bypass"
+                orderId: orderId,
+                paymentId: paymentId,
+                signature: signature
             )
             await MainActor.run {
                 paymentSuccess = true
@@ -375,10 +428,21 @@ struct TaskDetailView: View {
             }
         } catch {
             await MainActor.run {
-                paymentError = "Payment verification failed: \(error.localizedDescription)"
+                paymentError = "Payment Verification Failed: \(error.localizedDescription)"
                 isPaying = false
             }
         }
+    }
+    
+    private func deleteThisTask() async {
+        isDeleting = true
+        let success = await taskViewModel.deleteTask(taskId: task.id)
+        if success {
+            dismiss()
+        } else {
+            paymentError = "Failed to delete task."
+        }
+        isDeleting = false
     }
 
     private var categoryIcon: String {

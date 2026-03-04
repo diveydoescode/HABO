@@ -144,13 +144,17 @@ class APIClient {
         try await request("POST", path: "/tasks/\(taskId)/accept")
     }
 
-    // ✅ FIXED: Takes the code here
     func completeTask(taskId: String, code: String) async throws -> TaskResponse {
         try await request(
             "POST",
             path: "/tasks/\(taskId)/complete",
             queryItems: [URLQueryItem(name: "code", value: code)]
         )
+    }
+    
+    // ✅ NEW: Delete Task Call
+    func deleteTask(taskId: String) async throws {
+        let _: [String: String] = try await request("DELETE", path: "/tasks/\(taskId)")
     }
     
     // MARK: - Users
@@ -184,8 +188,9 @@ class APIClient {
         try await request("POST", path: "/payments/create-order", body: CreateOrderRequest(taskId: taskId, amountPaise: amountPaise))
     }
 
+    // ✅ FIXED: Now safely decodes the VerifyPaymentResponse instead of a dictionary of Bools
     func verifyPayment(taskId: String, orderId: String, paymentId: String, signature: String) async throws {
-        let _: [String: Bool] = try await request(
+        let _: VerifyPaymentResponse = try await request(
             "POST", path: "/payments/verify",
             body: VerifyPaymentRequest(taskId: taskId, razorpayOrderId: orderId, razorpayPaymentId: paymentId, razorpaySignature: signature)
         )
