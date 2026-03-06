@@ -9,6 +9,7 @@ struct UserProfile: Sendable {
     var tasksPosted: Int
     var tasksCompleted: Int
     var memberSince: Date
+    var skills: [UserSkill]? // ✅ NEW
 
     init(
         id: UUID = UUID(),
@@ -18,7 +19,8 @@ struct UserProfile: Sendable {
         rating: Double = 5.0,
         tasksPosted: Int = 0,
         tasksCompleted: Int = 0,
-        memberSince: Date = Date()
+        memberSince: Date = Date(),
+        skills: [UserSkill]? = nil // ✅ NEW
     ) {
         self.id = id
         self.name = name
@@ -28,5 +30,6 @@ struct UserProfile: Sendable {
         self.tasksPosted = tasksPosted
         self.tasksCompleted = tasksCompleted
         self.memberSince = memberSince
+        self.skills = skills
     }
 }

@@ -7,6 +7,9 @@ struct ProfileView: View {
     let onSignOut: () -> Void
 
     @State private var selectedTaskTab: ProfileTaskTab = .posted
+    
+    // ✅ NEW: Environment variable to handle URL redirects
+    @Environment(\.openURL) var openURL
 
     enum ProfileTaskTab: String, CaseIterable {
         case posted = "Posted"
@@ -172,10 +175,31 @@ struct ProfileView: View {
         VStack(spacing: 0) {
             SettingsRow(icon: "bell.fill", title: "Notifications", color: .red)
             Divider().padding(.leading, 52)
-            SettingsRow(icon: "shield.fill", title: "Privacy & Safety", color: .blue)
+            
+            // ✅ NEW: Functional Redirect for Privacy
+            Button {
+                if let url = URL(string: "https://haboapp.com/privacy") { // Replace with actual URL
+                    openURL(url)
+                }
+            } label: {
+                SettingsRow(icon: "shield.fill", title: "Privacy & Safety", color: .blue)
+            }
+            .buttonStyle(.plain) // Prevents the whole row from looking like a standard blue button
+            
             Divider().padding(.leading, 52)
-            SettingsRow(icon: "questionmark.circle.fill", title: "Help & Support", color: .green)
+            
+            // ✅ NEW: Functional Redirect for Support
+            Button {
+                if let url = URL(string: "https://haboapp.com/support") { // Replace with actual URL
+                    openURL(url)
+                }
+            } label: {
+                SettingsRow(icon: "questionmark.circle.fill", title: "Help & Support", color: .green)
+            }
+            .buttonStyle(.plain)
+            
             Divider().padding(.leading, 52)
+            
             Button { onSignOut() } label: {
                 HStack(spacing: 16) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")

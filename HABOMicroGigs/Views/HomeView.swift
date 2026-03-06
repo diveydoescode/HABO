@@ -18,7 +18,29 @@ struct HomeView: View {
         NavigationStack {
             ZStack(alignment: .top) {
                 if showMapView {
-                    mapContent
+                    // ✅ NEW: ZStack added here to overlay the refresh button on the map
+                    ZStack(alignment: .bottomTrailing) {
+                        mapContent
+                        
+                        // Floating Refresh Button
+                        Button {
+                            Task {
+                                await taskViewModel.fetchTasks(location: locationService.location)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(14)
+                                .background(Color(red: 1.0, green: 0.45, blue: 0.0))
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.3), radius: 5, y: 3)
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 40) // Keeps it from overlapping Apple's map controls
+                        .opacity(taskViewModel.isLoading ? 0.5 : 1.0)
+                        .disabled(taskViewModel.isLoading)
+                    }
                 } else {
                     listContent
                 }

@@ -12,7 +12,23 @@ struct AuthResponse: Decodable {
     let user: UserResponse
 }
 
-// MARK: - User
+// MARK: - User & Skills (NEW)
+struct UserSkill: Codable, Identifiable, Hashable {
+    var id = UUID()
+    var name: String
+    var proficiency: Int // 1 to 5
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case proficiency
+    }
+}
+
+struct ProfileUpdateRequest: Encodable {
+    let name: String
+    let skills: [UserSkill]
+}
+
 struct UserResponse: Decodable, Identifiable {
     let id: UUID
     let name: String
@@ -25,6 +41,7 @@ struct UserResponse: Decodable, Identifiable {
     let publicKey: String?
     let followerCount: Int
     let followingCount: Int
+    let skills: [UserSkill]? // ✅ NEW
 }
 
 struct UserSearchResult: Decodable, Identifiable {
@@ -49,6 +66,7 @@ struct UserProfileResponse: Decodable, Identifiable {
     let followerCount: Int
     let followingCount: Int
     let isFollowing: Bool
+    let skills: [UserSkill]? // ✅ NEW
 }
 
 struct FollowResponse: Decodable {
@@ -79,9 +97,7 @@ struct TaskResponse: Decodable, Identifiable {
     let longitude: Double
     let radiusMetres: Int
     let status: String
-    
     let completionCode: String?
-    
     let createdAt: Date
     let creatorName: String
     let creatorId: UUID
@@ -135,7 +151,6 @@ struct PaymentOrderResponse: Decodable {
 
 typealias RazorpayOrder = PaymentOrderResponse
 
-// ✅ NEW: Strict decoder for the Python verification response
 struct VerifyPaymentResponse: Decodable {
     let success: Bool
     let message: String

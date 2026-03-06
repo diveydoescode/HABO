@@ -13,18 +13,27 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if !hasSeenOnboarding {
-                OnboardingView()
-            } else if authViewModel.isCheckingSession {
+            if authViewModel.isCheckingSession {
                 SplashView()
             } else if authViewModel.isAuthenticated, let user = authViewModel.currentUser {
-                mainTabView(user: user)
+                // ✅ Check if they are authenticated BUT still need onboarding (name/skills empty)
+                if authViewModel.needsOnboarding {
+                    OnboardingView(authViewModel: authViewModel)
+                } else {
+                    mainTabView(user: user)
+                }
             } else {
-                LoginView(authViewModel: authViewModel)
+                // Not authenticated. Do they need the welcome tour?
+                if !hasSeenOnboarding {
+                    OnboardingView(authViewModel: authViewModel)
+                } else {
+                    LoginView(authViewModel: authViewModel)
+                }
             }
         }
         .animation(.spring(response: 0.5), value: hasSeenOnboarding)
         .animation(.spring(response: 0.5), value: authViewModel.isAuthenticated)
+        .animation(.spring(response: 0.5), value: authViewModel.needsOnboarding) // ✅ Added animation for this state
         .animation(.easeInOut(duration: 0.3), value: authViewModel.isCheckingSession)
         .task {
             await authViewModel.restoreSessionIfNeeded()

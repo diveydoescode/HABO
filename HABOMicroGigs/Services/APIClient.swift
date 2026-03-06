@@ -121,6 +121,11 @@ class APIClient {
     func getMe() async throws -> UserResponse {
         try await request("GET", path: "/auth/me")
     }
+    
+    // ✅ NEW: Update Profile Endpoint for Onboarding
+    func updateProfile(request body: ProfileUpdateRequest) async throws -> UserResponse {
+        try await request("PUT", path: "/users/me", body: body)
+    }
 
     // MARK: - Tasks
     func getTasks(lat: Double, lon: Double, category: String? = nil) async throws -> [TaskResponse] {
@@ -152,7 +157,6 @@ class APIClient {
         )
     }
     
-    // ✅ NEW: Delete Task Call
     func deleteTask(taskId: String) async throws {
         let _: [String: String] = try await request("DELETE", path: "/tasks/\(taskId)")
     }
@@ -188,7 +192,6 @@ class APIClient {
         try await request("POST", path: "/payments/create-order", body: CreateOrderRequest(taskId: taskId, amountPaise: amountPaise))
     }
 
-    // ✅ FIXED: Now safely decodes the VerifyPaymentResponse instead of a dictionary of Bools
     func verifyPayment(taskId: String, orderId: String, paymentId: String, signature: String) async throws {
         let _: VerifyPaymentResponse = try await request(
             "POST", path: "/payments/verify",
