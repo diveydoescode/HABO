@@ -9,15 +9,18 @@ struct TaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAcceptConfirmation: Bool = false
+    @State private var showPaymentConfirmation: Bool = false
+    
+    // ✅ Application States
+    @State private var showApplicantsSheet: Bool = false
     @State private var showApplySheet: Bool = false
     @State private var coverMessage: String = ""
-    
-    @State private var showApplicantsSheet: Bool = false
     
     @State private var hasAccepted: Bool = false
     @State private var isAccepting: Bool = false
     
     @State private var isPaying: Bool = false
+    // ✅ Razorpay Handler
     @StateObject private var razorpayHandler = RazorpayHandler()
     
     @State private var recipientPublicKey: String? = nil
@@ -29,6 +32,7 @@ struct TaskDetailView: View {
     
     @State private var enteredCode: String = ""
     @State private var dynamicCompletionCode: String? = nil
+    @State private var unreadMessagesCount: Int = Int.random(in: 0...3)
     
     @State private var showDeleteConfirmation: Bool = false
     @State private var isDeleting: Bool = false
@@ -64,13 +68,13 @@ struct TaskDetailView: View {
                 mapPreview
 
                 VStack(spacing: 20) {
-                    // MARK: - Main Info Card
+                    
+                    // Main Task Info Card
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 6) {
                                 Text(task.title)
                                     .font(.system(.title2, design: .rounded, weight: .bold))
-                                
                                 HStack(spacing: 8) {
                                     Label(task.category, systemImage: categoryIcon)
                                         .font(.caption.weight(.bold))
@@ -94,7 +98,6 @@ struct TaskDetailView: View {
                                 Text("₹\(task.budget)")
                                     .font(.system(.title, design: .rounded, weight: .bold))
                                     .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
-                                
                                 if task.isNegotiable {
                                     Text("Negotiable")
                                         .font(.caption2.weight(.medium))
@@ -108,16 +111,20 @@ struct TaskDetailView: View {
                         Text(task.description)
                             .font(.body)
                             .foregroundStyle(.secondary)
-                        
+                            .padding(.top, 4)
+                            
                         if currentStatus != "Completed" {
-                            Button { openInAppleMaps() } label: {
+                            Button {
+                                openInAppleMaps()
+                            } label: {
                                 HStack {
                                     Image(systemName: "location.fill")
                                     Text("Get Directions")
                                 }
                                 .font(.system(.subheadline, design: .rounded, weight: .bold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 16).padding(.vertical, 10)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
                                 .background(Color.blue)
                                 .clipShape(.capsule)
                             }
@@ -139,9 +146,10 @@ struct TaskDetailView: View {
                         )
                     }
 
-                    // MARK: - Action Area
+                    // Action Buttons Area
                     VStack(spacing: 12) {
                         
+                        // ✅ Review Applicants Button (Owner Only)
                         if isOwner && currentStatus == "Active" && task.requiresApplication {
                             Button {
                                 showApplicantsSheet = true
@@ -159,6 +167,7 @@ struct TaskDetailView: View {
                             }
                         }
                         
+                        // ✅ Accept or Apply Button (Seeker Only)
                         if canAccept {
                             Button {
                                 if task.requiresApplication {
@@ -194,7 +203,10 @@ struct TaskDetailView: View {
                         }
 
                         if chatIsUnlocked {
-                            Button { showChat = true } label: {
+                            Button {
+                                unreadMessagesCount = 0
+                                showChat = true
+                            } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: "lock.fill").font(.caption).foregroundStyle(.green)
                                     Text("Encrypted Chat").font(.system(.headline, design: .rounded, weight: .bold))
@@ -215,7 +227,7 @@ struct TaskDetailView: View {
                                     Text("Provide this code to the poster when finished:")
                                         .font(.caption).foregroundStyle(.secondary)
                                     
-                                    // Fallback to task.completionCode ensures it never vanishes
+                                    // ✅ Restored fallback so the code always shows
                                     Text(dynamicCompletionCode ?? task.completionCode ?? "------")
                                         .font(.system(.title, design: .monospaced, weight: .black))
                                         .tracking(10)
@@ -230,34 +242,23 @@ struct TaskDetailView: View {
                                 VStack(spacing: 12) {
                                     Text("Enter the 6-digit code from the task doer to complete the gig and initiate payment.")
                                         .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                                    
-                                    // ✅ Highly reliable native text field that works 100% of the time
+                                        
+                                    // ✅ Restored your EXACT UI code for the input field
                                     TextField("000000", text: $enteredCode)
                                         .keyboardType(.numberPad)
-                                        .textContentType(.oneTimeCode)
-                                        .font(.system(size: 32, weight: .black, design: .monospaced))
-                                        .tracking(12)
+                                        .font(.system(.title, design: .monospaced, weight: .bold))
                                         .multilineTextAlignment(.center)
-                                        .padding(.vertical, 16)
+                                        .padding()
                                         .background(Color(.systemGray6))
-                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                .stroke(enteredCode.count == 6 ? Color.green : Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.5), lineWidth: 2)
-                                        )
-                                        .onChange(of: enteredCode) { newValue in
-                                            let filtered = newValue.filter { $0.isNumber }
-                                            if filtered.count > 6 {
-                                                enteredCode = String(filtered.prefix(6))
-                                            } else if filtered != newValue {
-                                                enteredCode = filtered
-                                            }
-                                        }
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
                                     
-                                    Button { Task { await initiatePayment() } } label: {
+                                    Button {
+                                        Task { await initiatePayment() }
+                                    } label: {
                                         HStack(spacing: 10) {
                                             if isPaying {
                                                 ProgressView().tint(.white)
+                                                Text("Verifying...").font(.headline)
                                             } else {
                                                 Image(systemName: "checkmark.shield.fill")
                                                 Text("Verify Code & Pay ₹\(task.budget)")
@@ -267,6 +268,7 @@ struct TaskDetailView: View {
                                         .frame(maxWidth: .infinity).padding(.vertical, 16)
                                         .background(enteredCode.count == 6 ? Color.black : Color.gray)
                                         .foregroundStyle(.white).clipShape(.capsule)
+                                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
                                     }
                                     .disabled(isPaying || paymentSuccess || enteredCode.count != 6)
                                 }
@@ -275,7 +277,8 @@ struct TaskDetailView: View {
                                 .clipShape(.rect(cornerRadius: 16, style: .continuous))
                                 
                                 if let err = paymentError {
-                                    Text(err).font(.caption).foregroundStyle(.red).padding(10)
+                                    Text(err).font(.caption).foregroundStyle(.red)
+                                        .padding(10).background(Color.red.opacity(0.1)).clipShape(.rect(cornerRadius: 8))
                                 }
                             }
                         }
@@ -292,9 +295,11 @@ struct TaskDetailView: View {
                             .padding(16).background(Color.green.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
-
+                        
                         if isOwner {
-                            Button { showDeleteConfirmation = true } label: {
+                            Button {
+                                showDeleteConfirmation = true
+                            } label: {
                                 HStack(spacing: 10) {
                                     if isDeleting {
                                         ProgressView().tint(.red)
@@ -309,10 +314,12 @@ struct TaskDetailView: View {
                             }
                             .disabled(isDeleting)
                             .confirmationDialog("Delete Task?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-                                Button("Delete", role: .destructive) { Task { await deleteThisTask() } }
+                                Button("Delete", role: .destructive) {
+                                    Task { await deleteThisTask() }
+                                }
                                 Button("Cancel", role: .cancel) {}
                             } message: {
-                                Text("This will delete all encrypted chat history. This cannot be undone.")
+                                Text("Are you sure you want to delete this task? This will also delete any encrypted chat history. This cannot be undone.")
                             }
                         }
                     }
@@ -326,36 +333,49 @@ struct TaskDetailView: View {
             dynamicCompletionCode = task.completionCode
             Task { await fetchOtherUserProfile() }
         }
+        .navigationBarTitleDisplayMode(.inline)
+        // ✅ Sheet for Applicants
         .sheet(isPresented: $showApplicantsSheet) {
             TaskApplicantsView(task: task, onHired: {
                 currentStatus = "Accepted"
                 Task {
-                    await fetchOtherUserProfile()
                     await taskViewModel.fetchTasks(location: nil)
+                    await fetchOtherUserProfile()
                 }
             })
         }
+        // ✅ Sheet for Applying
         .sheet(isPresented: $showApplySheet) {
             applicationSheet
         }
         .sheet(isPresented: $showChat) {
             NavigationStack {
-                if let pubKey = recipientPublicKey {
-                    ChatView(taskId: task.id, currentUserId: currentUser.id, recipientPublicKey: pubKey)
-                } else {
-                    ProgressView("Loading encryption keys...")
+                Group {
+                    if let pubKey = recipientPublicKey {
+                        ChatView(taskId: task.id, currentUserId: currentUser.id, recipientPublicKey: pubKey)
+                    } else if otherUserProfile != nil {
+                        // ✅ Tell the user exactly what is wrong if the other user has no keys
+                        ContentUnavailableView("Encryption Key Missing", systemImage: "key.slash", description: Text("This user is using an old account without encryption. They need to sign out and log back in to generate their keys."))
+                    } else {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                            Text("Loading encryption keys...")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .task { await fetchOtherUserProfile() }
+                    }
                 }
             }
+            .presentationDetents([.large])
         }
     }
-
-    // MARK: - Sheets & Maps
-
+    
+    // MARK: - Apply Sheet
     private var applicationSheet: some View {
         NavigationStack {
             Form {
                 Section("Cover Message") {
-                    TextField("Explain why you're a good fit...", text: $coverMessage, axis: .vertical)
+                    TextField("Briefly explain why you're a good fit...", text: $coverMessage, axis: .vertical)
                         .lineLimit(4...6)
                 }
                 Button("Submit Application") {
@@ -375,6 +395,14 @@ struct TaskDetailView: View {
         .presentationDetents([.medium])
     }
 
+    private func openInAppleMaps() {
+        let coordinate = CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude)
+        let placemark = MKPlacemark(coordinate: coordinate)
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = task.title
+        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+    }
+
     private var mapPreview: some View {
         Map(initialPosition: .region(MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude),
@@ -383,16 +411,14 @@ struct TaskDetailView: View {
             Annotation(task.title, coordinate: CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude)) {
                 ZStack {
                     SwiftUI.Circle().fill(categoryColor.gradient).frame(width: 36, height: 36).shadow(radius: 4)
-                    Image(systemName: categoryIcon).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                    Image(systemName: categoryIcon)
+                        .font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
                 }
             }
         }
         .mapStyle(.standard).frame(height: 250).allowsHitTesting(false)
     }
 
-    // MARK: - Logic Methods
-    
-    @MainActor
     private func submitApplication() async {
         isAccepting = true
         do {
@@ -405,102 +431,121 @@ struct TaskDetailView: View {
         isAccepting = false
     }
 
-    @MainActor
     private func acceptTask() async {
         isAccepting = true
         if let newCode = await taskViewModel.acceptTask(taskId: task.id, by: currentUser) {
             hasAccepted = true
             currentStatus = "Accepted"
             dynamicCompletionCode = newCode
+            
+            await taskViewModel.fetchTasks(location: nil)
             await fetchOtherUserProfile()
         }
         isAccepting = false
     }
 
-    @MainActor
     private func fetchOtherUserProfile() async {
-        let targetId = isOwner ? task.acceptedById : task.creatorId
+        // ✅ FIXED: Get the absolute most up-to-date version of this task from the ViewModel.
+        // This ensures that right after you hire an applicant, we know exactly who the `acceptedById` is!
+        let freshestTask = taskViewModel.tasks.first(where: { $0.id == task.id }) ?? task
+        
+        let targetId: UUID?
+        if isOwner {
+            targetId = freshestTask.acceptedById
+        } else {
+            targetId = freshestTask.creatorId
+        }
+        
         guard let uid = targetId else { return }
+        
         if let profile = try? await APIClient.shared.getUserProfile(userId: uid.uuidString) {
-            self.otherUserProfile = profile
-            self.recipientPublicKey = profile.publicKey
+            await MainActor.run {
+                self.otherUserProfile = profile
+                self.recipientPublicKey = profile.publicKey
+            }
         }
     }
 
-    // ✅ FIXED: Guaranteed UI unblocking and direct API call
-    @MainActor
     private func initiatePayment() async {
-        // Force dismiss keyboard instantly
+        // Dismiss keyboard so Razorpay UI can slide up properly
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         
         isPaying = true
         paymentError = nil
         
-        let cleanCode = enteredCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleanCode.count == 6 else {
-            paymentError = "Please enter the 6-digit code."
+        let verified = await taskViewModel.completeTask(taskId: task.id, code: enteredCode)
+        
+        guard verified else {
+            paymentError = "Verification Failed. Check the 6-digit code."
             isPaying = false
             return
         }
         
         do {
-            // 1. Verify the code with the backend directly (Bypass ViewModel to prevent hangs)
-            _ = try await APIClient.shared.completeTask(taskId: task.id.uuidString, code: cleanCode)
+            let order = try await APIClient.shared.createPaymentOrder(
+                taskId: task.id.uuidString,
+                amountPaise: task.budget * 100
+            )
             
-            // 2. Generate Razorpay Order
-            let order = try await APIClient.shared.createPaymentOrder(taskId: task.id.uuidString, amountPaise: task.budget * 100)
-            
-            // 3. Tiny delay so keyboard animations finish before Razorpay takes over
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            
-            razorpayHandler.onSuccess = { p, o, s in
-                Task { @MainActor in await self.finalizeVerificationWithBackend(pId: p, oId: o, sig: s) }
-            }
-            
-            razorpayHandler.onError = { errorMsg in
-                Task { @MainActor in
-                    self.paymentError = errorMsg
-                    self.isPaying = false
+            razorpayHandler.onSuccess = { paymentId, orderId, signature in
+                Task {
+                    await finalizeVerificationWithBackend(paymentId: paymentId, orderId: orderId, signature: signature)
                 }
             }
             
-            // Launch Razorpay UI
-            razorpayHandler.startPayment(orderId: order.razorpayOrderId, amountPaise: order.amountPaise, keyId: order.keyId, email: currentUser.email, contact: "9999999999")
+            razorpayHandler.onError = { errorString in
+                self.paymentError = errorString
+                self.isPaying = false
+            }
             
-        } catch let APIError.serverError(msg) {
-            paymentError = msg
-            isPaying = false
+            // ✅ ADDED: Give the UI 0.4 seconds to let the keyboard finish dropping down completely so Razorpay isn't blocked
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            
+            // Safely passes the API key sent dynamically from Azure
+            razorpayHandler.startPayment(
+                orderId: order.razorpayOrderId,
+                amountPaise: order.amountPaise,
+                keyId: order.keyId,
+                email: currentUser.email,
+                contact: "9999999999"
+            )
+            
         } catch {
-            paymentError = "Verification Failed. Check the 6-digit code."
+            paymentError = "Could not initiate payment: \(error.localizedDescription)"
             isPaying = false
         }
     }
 
-    @MainActor
-    private func finalizeVerificationWithBackend(pId: String, oId: String, sig: String) async {
+    private func finalizeVerificationWithBackend(paymentId: String, orderId: String, signature: String) async {
         do {
-            try await APIClient.shared.verifyPayment(taskId: task.id.uuidString, orderId: oId, paymentId: pId, signature: sig)
-            paymentSuccess = true
-            currentStatus = "Completed"
-            isPaying = false
-            // Now that payment is 100% done, quietly update the global state
-            await taskViewModel.fetchTasks(location: nil)
+            try await APIClient.shared.verifyPayment(
+                taskId: task.id.uuidString,
+                orderId: orderId,
+                paymentId: paymentId,
+                signature: signature
+            )
+            await MainActor.run {
+                paymentSuccess = true
+                currentStatus = "Completed"
+                isPaying = false
+            }
         } catch {
-            paymentError = "Verification Failed: \(error.localizedDescription)"
-            isPaying = false
+            await MainActor.run {
+                paymentError = "Payment Verification Failed: \(error.localizedDescription)"
+                isPaying = false
+            }
         }
     }
     
-    @MainActor
     private func deleteThisTask() async {
         isDeleting = true
-        if await taskViewModel.deleteTask(taskId: task.id) { dismiss() }
+        let success = await taskViewModel.deleteTask(taskId: task.id)
+        if success {
+            dismiss()
+        } else {
+            paymentError = "Failed to delete task."
+        }
         isDeleting = false
-    }
-
-    private func openInAppleMaps() {
-        let coordinate = CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude)
-        MKMapItem(placemark: MKPlacemark(coordinate: coordinate)).openInMaps()
     }
 
     private var categoryIcon: String {
@@ -514,7 +559,6 @@ struct TaskDetailView: View {
 }
 
 // MARK: - Subviews
-
 struct TaskTimelineView: View {
     let status: String
     private var step2Active: Bool { status == "Accepted" || status == "Completed" }
@@ -553,7 +597,9 @@ struct TimelineNode: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(isActive ? AnyShapeStyle(.white) : AnyShapeStyle(.tertiary))
             }
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(isActive ? .primary : .secondary)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isActive ? .primary : .secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -575,21 +621,31 @@ struct UserProfileCardView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.caption.weight(.bold)).foregroundStyle(.secondary).textCase(.uppercase)
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            
             HStack(spacing: 16) {
                 ZStack {
                     SwiftUI.Circle()
                         .fill(LinearGradient(colors: [Color(red: 1.0, green: 0.45, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 50, height: 50)
-                    Text(String(profile.name.prefix(1)).uppercased()).font(.title3.weight(.bold)).foregroundStyle(.white)
+                    Text(String(profile.name.prefix(1)).uppercased())
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
                 }
+                
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(profile.name).font(.system(.headline, design: .rounded, weight: .bold))
+                    Text(profile.name)
+                        .font(.system(.headline, design: .rounded, weight: .bold))
+                    
                     HStack(spacing: 12) {
                         HStack(spacing: 4) {
                             Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption)
                             Text(String(format: "%.1f", profile.rating)).font(.caption.weight(.semibold))
                         }
+                        
                         HStack(spacing: 4) {
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
                             Text("\(profile.tasksCompleted) tasks").font(.caption.weight(.semibold))
@@ -600,6 +656,9 @@ struct UserProfileCardView: View {
                 Spacer()
             }
         }
-        .padding(16).background(Color(.secondarySystemGroupedBackground)).clipShape(RoundedRectangle(cornerRadius: 20)).shadow(color: .black.opacity(0.04), radius: 6, y: 3)
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.04), radius: 6, y: 3)
     }
 }

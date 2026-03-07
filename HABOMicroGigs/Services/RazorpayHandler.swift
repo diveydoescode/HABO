@@ -41,19 +41,35 @@ class RazorpayHandler: NSObject, ObservableObject, RazorpayPaymentCompletionProt
             // ✅ Initialize Razorpay dynamically using the key from the backend!
             self.razorpay = RazorpayCheckout.initWithKey(keyId, andDelegateWithData: self)
             
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
-                
-                self.razorpay?.open(options, displayController: rootVC)
-                
+            // ✅ Fix: Use getTopViewController instead of rootViewController
+            if let topVC = self.getTopViewController() {
+                self.razorpay?.open(options, displayController: topVC)
             } else {
                 self.isPaying = false
-                self.errorMessage = "Could not present Razorpay screen."
+                self.errorMessage = "Could not find a screen to present Razorpay."
+                self.onError?("Could not present payment screen.")
             }
         }
     }
     
+    // ✅ NEW: Helper method to recursively find the highest visible screen
+    private func getTopViewController() -> UIViewController? {
+        guard let windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+              let root = window.rootViewController else {
+            return nil
+        }
+        
+        var topController = root
+        // Keep climbing the view hierarchy until we find the view on top
+        while let presented = topController.presentedViewController {
+            topController = presented
+        }
+        return topController
+    }
+    
     // MARK: - Razorpay Callbacks
+    
     func onPaymentError(_ code: Int32, description str: String, andData response: [AnyHashable : Any]?) {
         DispatchQueue.main.async {
             self.isPaying = false
