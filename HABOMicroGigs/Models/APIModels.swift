@@ -12,7 +12,7 @@ struct AuthResponse: Decodable {
     let user: UserResponse
 }
 
-// MARK: - User & Skills (NEW)
+// MARK: - User & Skills
 struct UserSkill: Codable, Identifiable, Hashable {
     var id = UUID()
     var name: String
@@ -41,7 +41,7 @@ struct UserResponse: Decodable, Identifiable {
     let publicKey: String?
     let followerCount: Int
     let followingCount: Int
-    let skills: [UserSkill]? // ✅ NEW
+    let skills: [UserSkill]?
 }
 
 struct UserSearchResult: Decodable, Identifiable {
@@ -66,7 +66,7 @@ struct UserProfileResponse: Decodable, Identifiable {
     let followerCount: Int
     let followingCount: Int
     let isFollowing: Bool
-    let skills: [UserSkill]? // ✅ NEW
+    let skills: [UserSkill]?
 }
 
 struct FollowResponse: Decodable {
@@ -84,6 +84,9 @@ struct TaskCreateRequest: Encodable {
     let latitude: Double
     let longitude: Double
     let radiusMetres: Int
+    // ✅ Fields for Circles and Applications
+    var circleId: UUID? = nil
+    var requiresApplication: Bool = false
 }
 
 struct TaskResponse: Decodable, Identifiable {
@@ -98,6 +101,10 @@ struct TaskResponse: Decodable, Identifiable {
     let radiusMetres: Int
     let status: String
     let completionCode: String?
+    // ✅ Fields for Circles and Applications
+    let circleId: UUID?
+    let requiresApplication: Bool
+    
     let createdAt: Date
     let creatorName: String
     let creatorId: UUID
@@ -110,6 +117,44 @@ struct TaskAcceptResponse: Decodable {
     let status: String
     let chatUnlocked: Bool
     let completionCode: String
+}
+
+// MARK: - Task Applications (NEW)
+struct TaskApplicationCreate: Encodable {
+    let coverMessage: String?
+}
+
+struct TaskApplicationResponse: Decodable, Identifiable {
+    let id: UUID
+    let taskId: UUID
+    let applicantId: UUID
+    let status: String
+    let coverMessage: String?
+    let appliedAt: Date
+}
+
+// MARK: - Circles (NEW)
+struct Circle: Decodable, Identifiable {
+    let id: UUID
+    let name: String
+    let description: String? // ✅ Added description support
+    let adminId: UUID
+    let inviteCode: String?  // ✅ Added invite code support
+    let createdAt: Date
+}
+
+struct InviteCodeResponse: Decodable {
+    let code: String
+    let expiresInSeconds: Int
+}
+
+struct CircleCreateRequest: Encodable {
+    let name: String
+    let description: String? // ✅ Added description support
+}
+
+struct CircleJoinRequest: Encodable {
+    let inviteCode: String
 }
 
 // MARK: - Chat

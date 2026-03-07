@@ -91,7 +91,7 @@ struct ChatView: View {
                 Task { await sendMessage() }
             } label: {
                 ZStack {
-                    Circle()
+                    SwiftUI.Circle() // ✅ Fixed namespace collision here!
                         .fill(inputText.trimmingCharacters(in: .whitespaces).isEmpty ? Color(.systemGray5) : Color(red: 1.0, green: 0.45, blue: 0.0))
                         .frame(width: 44, height: 44)
                     

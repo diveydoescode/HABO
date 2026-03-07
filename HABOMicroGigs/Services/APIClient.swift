@@ -1,6 +1,4 @@
 // MARK: - APIClient.swift
-// HABOMicroGigs/Services/APIClient.swift
-
 import Foundation
 
 let API_BASE_URL = "https://habo-backend.azurewebsites.net"
@@ -122,7 +120,6 @@ class APIClient {
         try await request("GET", path: "/auth/me")
     }
     
-    // ✅ NEW: Update Profile Endpoint for Onboarding
     func updateProfile(request body: ProfileUpdateRequest) async throws -> UserResponse {
         try await request("PUT", path: "/users/me", body: body)
     }
@@ -161,6 +158,40 @@ class APIClient {
         let _: [String: String] = try await request("DELETE", path: "/tasks/\(taskId)")
     }
     
+    // MARK: - Task Applications
+    func applyForTask(taskId: String, coverMessage: String? = nil) async throws -> TaskApplicationResponse {
+        let payload = TaskApplicationCreate(coverMessage: coverMessage)
+        return try await request("POST", path: "/tasks/\(taskId)/apply", body: payload)
+    }
+    
+    func getTaskApplications(taskId: String) async throws -> [TaskApplicationResponse] {
+        try await request("GET", path: "/tasks/\(taskId)/applications")
+    }
+    
+    func acceptApplication(applicationId: String) async throws -> TaskAcceptResponse {
+        try await request("POST", path: "/tasks/applications/\(applicationId)/accept")
+    }
+    
+    // MARK: - Circles
+    func fetchMyCircles() async throws -> [Circle] {
+        try await request("GET", path: "/circles/")
+    }
+
+    // ✅ FIXED: Added `description` parameter to match the updated model
+    func createCircle(name: String, description: String? = nil) async throws -> Circle {
+        let payload = CircleCreateRequest(name: name, description: description)
+        return try await request("POST", path: "/circles/", body: payload)
+    }
+
+    func joinCircle(inviteCode: String) async throws {
+        let payload = CircleJoinRequest(inviteCode: inviteCode)
+        let _: [String: String] = try await request("POST", path: "/circles/join", body: payload)
+    }
+
+    func getInviteCode(circleId: String) async throws -> InviteCodeResponse {
+        try await request("GET", path: "/circles/\(circleId)/invite")
+    }
+
     // MARK: - Users
     func searchUsers(query: String) async throws -> [UserSearchResult] {
         try await request("GET", path: "/users/search", queryItems: [URLQueryItem(name: "q", value: query)])

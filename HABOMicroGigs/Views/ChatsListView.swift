@@ -52,7 +52,7 @@ struct ChatRowView: View {
     var body: some View {
         HStack(spacing: 16) {
             ZStack {
-                Circle()
+                SwiftUI.Circle() // ✅ Fixed namespace collision
                     .fill(LinearGradient(colors: [Color(red: 1.0, green: 0.45, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 50, height: 50)
                 Image(systemName: "lock.fill")

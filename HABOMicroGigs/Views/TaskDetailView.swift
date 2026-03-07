@@ -9,12 +9,15 @@ struct TaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAcceptConfirmation: Bool = false
-    @State private var showPaymentConfirmation: Bool = false
+    @State private var showApplySheet: Bool = false
+    @State private var coverMessage: String = ""
+    
+    @State private var showApplicantsSheet: Bool = false
+    
     @State private var hasAccepted: Bool = false
     @State private var isAccepting: Bool = false
     
     @State private var isPaying: Bool = false
-    // ✅ 1. Added Razorpay Handler
     @StateObject private var razorpayHandler = RazorpayHandler()
     
     @State private var recipientPublicKey: String? = nil
@@ -26,7 +29,6 @@ struct TaskDetailView: View {
     
     @State private var enteredCode: String = ""
     @State private var dynamicCompletionCode: String? = nil
-    @State private var unreadMessagesCount: Int = Int.random(in: 0...3)
     
     @State private var showDeleteConfirmation: Bool = false
     @State private var isDeleting: Bool = false
@@ -62,13 +64,13 @@ struct TaskDetailView: View {
                 mapPreview
 
                 VStack(spacing: 20) {
-                    
-                    // Main Task Info Card
+                    // MARK: - Main Info Card
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text(task.title)
                                     .font(.system(.title2, design: .rounded, weight: .bold))
+                                
                                 HStack(spacing: 8) {
                                     Label(task.category, systemImage: categoryIcon)
                                         .font(.caption.weight(.bold))
@@ -76,6 +78,15 @@ struct TaskDetailView: View {
                                         .padding(.horizontal, 10).padding(.vertical, 5)
                                         .background(categoryColor.opacity(0.12))
                                         .clipShape(.capsule)
+                                    
+                                    if task.circleId != nil {
+                                        Label("Private Circle", systemImage: "shield.fill")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(.blue)
+                                            .padding(.horizontal, 10).padding(.vertical, 5)
+                                            .background(Color.blue.opacity(0.12))
+                                            .clipShape(.capsule)
+                                    }
                                 }
                             }
                             Spacer()
@@ -83,6 +94,7 @@ struct TaskDetailView: View {
                                 Text("₹\(task.budget)")
                                     .font(.system(.title, design: .rounded, weight: .bold))
                                     .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
+                                
                                 if task.isNegotiable {
                                     Text("Negotiable")
                                         .font(.caption2.weight(.medium))
@@ -96,20 +108,16 @@ struct TaskDetailView: View {
                         Text(task.description)
                             .font(.body)
                             .foregroundStyle(.secondary)
-                            .padding(.top, 4)
-                            
+                        
                         if currentStatus != "Completed" {
-                            Button {
-                                openInAppleMaps()
-                            } label: {
+                            Button { openInAppleMaps() } label: {
                                 HStack {
                                     Image(systemName: "location.fill")
                                     Text("Get Directions")
                                 }
                                 .font(.system(.subheadline, design: .rounded, weight: .bold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, 16).padding(.vertical, 10)
                                 .background(Color.blue)
                                 .clipShape(.capsule)
                             }
@@ -131,19 +139,41 @@ struct TaskDetailView: View {
                         )
                     }
 
-                    // Action Buttons Area
+                    // MARK: - Action Area
                     VStack(spacing: 12) {
+                        
+                        if isOwner && currentStatus == "Active" && task.requiresApplication {
+                            Button {
+                                showApplicantsSheet = true
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "person.2.badge.gearshape.fill")
+                                    Text("Review Applicants")
+                                        .font(.system(.headline, design: .rounded, weight: .bold))
+                                }
+                                .frame(maxWidth: .infinity).padding(.vertical, 16)
+                                .background(Color.purple.opacity(0.1))
+                                .foregroundStyle(.purple)
+                                .clipShape(.capsule)
+                                .overlay(Capsule().stroke(Color.purple.opacity(0.2), lineWidth: 1))
+                            }
+                        }
                         
                         if canAccept {
                             Button {
-                                showAcceptConfirmation = true
+                                if task.requiresApplication {
+                                    showApplySheet = true
+                                } else {
+                                    showAcceptConfirmation = true
+                                }
                             } label: {
                                 HStack(spacing: 10) {
                                     if isAccepting {
                                         ProgressView().tint(.white)
                                     } else {
-                                        Image(systemName: "hand.raised.fill")
-                                        Text("Accept Task").font(.system(.headline, design: .rounded, weight: .bold))
+                                        Image(systemName: task.requiresApplication ? "paperplane.fill" : "hand.raised.fill")
+                                        Text(task.requiresApplication ? "Apply for Task" : "Accept Task")
+                                            .font(.system(.headline, design: .rounded, weight: .bold))
                                     }
                                 }
                                 .frame(maxWidth: .infinity).padding(.vertical, 16)
@@ -164,10 +194,7 @@ struct TaskDetailView: View {
                         }
 
                         if chatIsUnlocked {
-                            Button {
-                                unreadMessagesCount = 0
-                                showChat = true
-                            } label: {
+                            Button { showChat = true } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: "lock.fill").font(.caption).foregroundStyle(.green)
                                     Text("Encrypted Chat").font(.system(.headline, design: .rounded, weight: .bold))
@@ -188,7 +215,8 @@ struct TaskDetailView: View {
                                     Text("Provide this code to the poster when finished:")
                                         .font(.caption).foregroundStyle(.secondary)
                                     
-                                    Text(dynamicCompletionCode ?? "ERROR")
+                                    // Fallback to task.completionCode ensures it never vanishes
+                                    Text(dynamicCompletionCode ?? task.completionCode ?? "------")
                                         .font(.system(.title, design: .monospaced, weight: .black))
                                         .tracking(10)
                                         .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
@@ -202,22 +230,34 @@ struct TaskDetailView: View {
                                 VStack(spacing: 12) {
                                     Text("Enter the 6-digit code from the task doer to complete the gig and initiate payment.")
                                         .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                                        
+                                    
+                                    // ✅ Highly reliable native text field that works 100% of the time
                                     TextField("000000", text: $enteredCode)
                                         .keyboardType(.numberPad)
-                                        .font(.system(.title, design: .monospaced, weight: .bold))
+                                        .textContentType(.oneTimeCode)
+                                        .font(.system(size: 32, weight: .black, design: .monospaced))
+                                        .tracking(12)
                                         .multilineTextAlignment(.center)
-                                        .padding()
+                                        .padding(.vertical, 16)
                                         .background(Color(.systemGray6))
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                .stroke(enteredCode.count == 6 ? Color.green : Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.5), lineWidth: 2)
+                                        )
+                                        .onChange(of: enteredCode) { newValue in
+                                            let filtered = newValue.filter { $0.isNumber }
+                                            if filtered.count > 6 {
+                                                enteredCode = String(filtered.prefix(6))
+                                            } else if filtered != newValue {
+                                                enteredCode = filtered
+                                            }
+                                        }
                                     
-                                    Button {
-                                        Task { await initiatePayment() }
-                                    } label: {
+                                    Button { Task { await initiatePayment() } } label: {
                                         HStack(spacing: 10) {
                                             if isPaying {
                                                 ProgressView().tint(.white)
-                                                Text("Verifying...").font(.headline)
                                             } else {
                                                 Image(systemName: "checkmark.shield.fill")
                                                 Text("Verify Code & Pay ₹\(task.budget)")
@@ -227,7 +267,6 @@ struct TaskDetailView: View {
                                         .frame(maxWidth: .infinity).padding(.vertical, 16)
                                         .background(enteredCode.count == 6 ? Color.black : Color.gray)
                                         .foregroundStyle(.white).clipShape(.capsule)
-                                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
                                     }
                                     .disabled(isPaying || paymentSuccess || enteredCode.count != 6)
                                 }
@@ -236,8 +275,7 @@ struct TaskDetailView: View {
                                 .clipShape(.rect(cornerRadius: 16, style: .continuous))
                                 
                                 if let err = paymentError {
-                                    Text(err).font(.caption).foregroundStyle(.red)
-                                        .padding(10).background(Color.red.opacity(0.1)).clipShape(.rect(cornerRadius: 8))
+                                    Text(err).font(.caption).foregroundStyle(.red).padding(10)
                                 }
                             }
                         }
@@ -254,11 +292,9 @@ struct TaskDetailView: View {
                             .padding(16).background(Color.green.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
-                        
+
                         if isOwner {
-                            Button {
-                                showDeleteConfirmation = true
-                            } label: {
+                            Button { showDeleteConfirmation = true } label: {
                                 HStack(spacing: 10) {
                                     if isDeleting {
                                         ProgressView().tint(.red)
@@ -273,12 +309,10 @@ struct TaskDetailView: View {
                             }
                             .disabled(isDeleting)
                             .confirmationDialog("Delete Task?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-                                Button("Delete", role: .destructive) {
-                                    Task { await deleteThisTask() }
-                                }
+                                Button("Delete", role: .destructive) { Task { await deleteThisTask() } }
                                 Button("Cancel", role: .cancel) {}
                             } message: {
-                                Text("Are you sure you want to delete this task? This will also delete any encrypted chat history. This cannot be undone.")
+                                Text("This will delete all encrypted chat history. This cannot be undone.")
                             }
                         }
                     }
@@ -292,32 +326,53 @@ struct TaskDetailView: View {
             dynamicCompletionCode = task.completionCode
             Task { await fetchOtherUserProfile() }
         }
-        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showApplicantsSheet) {
+            TaskApplicantsView(task: task, onHired: {
+                currentStatus = "Accepted"
+                Task {
+                    await fetchOtherUserProfile()
+                    await taskViewModel.fetchTasks(location: nil)
+                }
+            })
+        }
+        .sheet(isPresented: $showApplySheet) {
+            applicationSheet
+        }
         .sheet(isPresented: $showChat) {
             NavigationStack {
-                Group {
-                    if let pubKey = recipientPublicKey {
-                        ChatView(taskId: task.id, currentUserId: currentUser.id, recipientPublicKey: pubKey)
-                    } else {
-                        VStack(spacing: 16) {
-                            ProgressView()
-                            Text("Loading encryption keys...")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        .task { await fetchOtherUserProfile() }
-                    }
+                if let pubKey = recipientPublicKey {
+                    ChatView(taskId: task.id, currentUserId: currentUser.id, recipientPublicKey: pubKey)
+                } else {
+                    ProgressView("Loading encryption keys...")
                 }
             }
-            .presentationDetents([.large])
         }
     }
 
-    private func openInAppleMaps() {
-        let coordinate = CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude)
-        let placemark = MKPlacemark(coordinate: coordinate)
-        let mapItem = MKMapItem(placemark: placemark)
-        mapItem.name = task.title
-        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+    // MARK: - Sheets & Maps
+
+    private var applicationSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Cover Message") {
+                    TextField("Explain why you're a good fit...", text: $coverMessage, axis: .vertical)
+                        .lineLimit(4...6)
+                }
+                Button("Submit Application") {
+                    Task { await submitApplication() }
+                }
+                .frame(maxWidth: .infinity)
+                .font(.headline)
+                .listRowBackground(Color(red: 1.0, green: 0.45, blue: 0.0))
+                .foregroundStyle(.white)
+            }
+            .navigationTitle("Apply")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showApplySheet = false } }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     private var mapPreview: some View {
@@ -327,122 +382,125 @@ struct TaskDetailView: View {
         ))) {
             Annotation(task.title, coordinate: CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude)) {
                 ZStack {
-                    Circle().fill(categoryColor.gradient).frame(width: 36, height: 36).shadow(radius: 4)
-                    Image(systemName: categoryIcon)
-                        .font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                    SwiftUI.Circle().fill(categoryColor.gradient).frame(width: 36, height: 36).shadow(radius: 4)
+                    Image(systemName: categoryIcon).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
                 }
             }
         }
         .mapStyle(.standard).frame(height: 250).allowsHitTesting(false)
     }
 
+    // MARK: - Logic Methods
+    
+    @MainActor
+    private func submitApplication() async {
+        isAccepting = true
+        do {
+            _ = try await APIClient.shared.applyForTask(taskId: task.id.uuidString, coverMessage: coverMessage)
+            hasAccepted = true
+            showApplySheet = false
+        } catch {
+            paymentError = error.localizedDescription
+        }
+        isAccepting = false
+    }
+
+    @MainActor
     private func acceptTask() async {
         isAccepting = true
         if let newCode = await taskViewModel.acceptTask(taskId: task.id, by: currentUser) {
             hasAccepted = true
             currentStatus = "Accepted"
             dynamicCompletionCode = newCode
-            
-            await taskViewModel.fetchTasks(location: nil)
             await fetchOtherUserProfile()
         }
         isAccepting = false
     }
 
+    @MainActor
     private func fetchOtherUserProfile() async {
-        let targetId: UUID?
-        if isOwner {
-            targetId = task.acceptedById
-        } else {
-            targetId = task.creatorId
-        }
-        
+        let targetId = isOwner ? task.acceptedById : task.creatorId
         guard let uid = targetId else { return }
-        
         if let profile = try? await APIClient.shared.getUserProfile(userId: uid.uuidString) {
-            await MainActor.run {
-                self.otherUserProfile = profile
-                self.recipientPublicKey = profile.publicKey
-            }
+            self.otherUserProfile = profile
+            self.recipientPublicKey = profile.publicKey
         }
     }
 
-    // ✅ 2. Updated initiatePayment to pass the dynamic keyId
+    // ✅ FIXED: Guaranteed UI unblocking and direct API call
+    @MainActor
     private func initiatePayment() async {
+        // Force dismiss keyboard instantly
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        
         isPaying = true
         paymentError = nil
         
-        let verified = await taskViewModel.completeTask(taskId: task.id, code: enteredCode)
-        
-        guard verified else {
-            paymentError = "Verification Failed. Check the 6-digit code."
+        let cleanCode = enteredCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleanCode.count == 6 else {
+            paymentError = "Please enter the 6-digit code."
             isPaying = false
             return
         }
         
         do {
-            let order = try await APIClient.shared.createPaymentOrder(
-                taskId: task.id.uuidString,
-                amountPaise: task.budget * 100
-            )
+            // 1. Verify the code with the backend directly (Bypass ViewModel to prevent hangs)
+            _ = try await APIClient.shared.completeTask(taskId: task.id.uuidString, code: cleanCode)
             
-            razorpayHandler.onSuccess = { paymentId, orderId, signature in
-                Task {
-                    await finalizeVerificationWithBackend(paymentId: paymentId, orderId: orderId, signature: signature)
+            // 2. Generate Razorpay Order
+            let order = try await APIClient.shared.createPaymentOrder(taskId: task.id.uuidString, amountPaise: task.budget * 100)
+            
+            // 3. Tiny delay so keyboard animations finish before Razorpay takes over
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            
+            razorpayHandler.onSuccess = { p, o, s in
+                Task { @MainActor in await self.finalizeVerificationWithBackend(pId: p, oId: o, sig: s) }
+            }
+            
+            razorpayHandler.onError = { errorMsg in
+                Task { @MainActor in
+                    self.paymentError = errorMsg
+                    self.isPaying = false
                 }
             }
             
-            razorpayHandler.onError = { errorString in
-                self.paymentError = errorString
-                self.isPaying = false
-            }
+            // Launch Razorpay UI
+            razorpayHandler.startPayment(orderId: order.razorpayOrderId, amountPaise: order.amountPaise, keyId: order.keyId, email: currentUser.email, contact: "9999999999")
             
-            // ✅ Safely passes the API key sent dynamically from Azure
-            razorpayHandler.startPayment(
-                orderId: order.razorpayOrderId,
-                amountPaise: order.amountPaise,
-                keyId: order.keyId,
-                email: currentUser.email,
-                contact: "9999999999"
-            )
-            
+        } catch let APIError.serverError(msg) {
+            paymentError = msg
+            isPaying = false
         } catch {
-            paymentError = "Could not initiate payment: \(error.localizedDescription)"
+            paymentError = "Verification Failed. Check the 6-digit code."
             isPaying = false
         }
     }
 
-    // ✅ 3. Replaced processTestPayment with finalizeVerificationWithBackend
-    private func finalizeVerificationWithBackend(paymentId: String, orderId: String, signature: String) async {
+    @MainActor
+    private func finalizeVerificationWithBackend(pId: String, oId: String, sig: String) async {
         do {
-            try await APIClient.shared.verifyPayment(
-                taskId: task.id.uuidString,
-                orderId: orderId,
-                paymentId: paymentId,
-                signature: signature
-            )
-            await MainActor.run {
-                paymentSuccess = true
-                currentStatus = "Completed"
-                isPaying = false
-            }
+            try await APIClient.shared.verifyPayment(taskId: task.id.uuidString, orderId: oId, paymentId: pId, signature: sig)
+            paymentSuccess = true
+            currentStatus = "Completed"
+            isPaying = false
+            // Now that payment is 100% done, quietly update the global state
+            await taskViewModel.fetchTasks(location: nil)
         } catch {
-            await MainActor.run {
-                paymentError = "Payment Verification Failed: \(error.localizedDescription)"
-                isPaying = false
-            }
+            paymentError = "Verification Failed: \(error.localizedDescription)"
+            isPaying = false
         }
     }
     
+    @MainActor
     private func deleteThisTask() async {
         isDeleting = true
-        let success = await taskViewModel.deleteTask(taskId: task.id)
-        if success {
-            dismiss()
-        } else {
-            paymentError = "Failed to delete task."
-        }
+        if await taskViewModel.deleteTask(taskId: task.id) { dismiss() }
         isDeleting = false
+    }
+
+    private func openInAppleMaps() {
+        let coordinate = CLLocationCoordinate2D(latitude: task.latitude, longitude: task.longitude)
+        MKMapItem(placemark: MKPlacemark(coordinate: coordinate)).openInMaps()
     }
 
     private var categoryIcon: String {
@@ -456,6 +514,7 @@ struct TaskDetailView: View {
 }
 
 // MARK: - Subviews
+
 struct TaskTimelineView: View {
     let status: String
     private var step2Active: Bool { status == "Accepted" || status == "Completed" }
@@ -486,7 +545,7 @@ struct TimelineNode: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
-                Circle()
+                SwiftUI.Circle()
                     .fill(isActive ? Color(red: 1.0, green: 0.45, blue: 0.0) : Color(.systemGray5))
                     .frame(width: 36, height: 36)
                 
@@ -494,9 +553,7 @@ struct TimelineNode: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(isActive ? AnyShapeStyle(.white) : AnyShapeStyle(.tertiary))
             }
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(isActive ? .primary : .secondary)
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(isActive ? .primary : .secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -518,31 +575,21 @@ struct UserProfileCardView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            
+            Text(title).font(.caption.weight(.bold)).foregroundStyle(.secondary).textCase(.uppercase)
             HStack(spacing: 16) {
                 ZStack {
-                    Circle()
+                    SwiftUI.Circle()
                         .fill(LinearGradient(colors: [Color(red: 1.0, green: 0.45, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 50, height: 50)
-                    Text(String(profile.name.prefix(1)).uppercased())
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                    Text(String(profile.name.prefix(1)).uppercased()).font(.title3.weight(.bold)).foregroundStyle(.white)
                 }
-                
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(profile.name)
-                        .font(.system(.headline, design: .rounded, weight: .bold))
-                    
+                    Text(profile.name).font(.system(.headline, design: .rounded, weight: .bold))
                     HStack(spacing: 12) {
                         HStack(spacing: 4) {
                             Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption)
                             Text(String(format: "%.1f", profile.rating)).font(.caption.weight(.semibold))
                         }
-                        
                         HStack(spacing: 4) {
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
                             Text("\(profile.tasksCompleted) tasks").font(.caption.weight(.semibold))
@@ -553,9 +600,6 @@ struct UserProfileCardView: View {
                 Spacer()
             }
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.04), radius: 6, y: 3)
+        .padding(16).background(Color(.secondarySystemGroupedBackground)).clipShape(RoundedRectangle(cornerRadius: 20)).shadow(color: .black.opacity(0.04), radius: 6, y: 3)
     }
 }

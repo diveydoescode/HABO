@@ -65,6 +65,8 @@ class TaskViewModel {
                     longitude: old.longitude, radiusMetres: old.radiusMetres,
                     status: response.status,
                     completionCode: response.completionCode,
+                    circleId: old.circleId, // ✅ Added missing parameter
+                    requiresApplication: old.requiresApplication, // ✅ Added missing parameter
                     createdAt: old.createdAt,
                     creatorName: old.creatorName, creatorId: old.creatorId,
                     acceptedById: user.id

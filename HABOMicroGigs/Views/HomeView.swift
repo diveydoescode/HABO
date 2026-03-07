@@ -33,7 +33,7 @@ struct HomeView: View {
                                 .foregroundStyle(.white)
                                 .padding(14)
                                 .background(Color(red: 1.0, green: 0.45, blue: 0.0))
-                                .clipShape(Circle())
+                                .clipShape(SwiftUI.Circle()) // ✅ Fixed
                                 .shadow(color: .black.opacity(0.3), radius: 5, y: 3)
                         }
                         .padding(.trailing, 16)
@@ -184,7 +184,7 @@ struct HomeView: View {
         VStack(spacing: 20) {
             Spacer()
             ZStack {
-                Circle().fill(Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.1)).frame(width: 120, height: 120)
+                SwiftUI.Circle().fill(Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.1)).frame(width: 120, height: 120) // ✅ Fixed
                 Image(systemName: "mappin.slash.circle.fill")
                     .font(.system(size: 60))
                     .foregroundStyle(Color(red: 1.0, green: 0.45, blue: 0.0))
@@ -301,7 +301,7 @@ struct TaskMapPin: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                Circle().fill(pinColor.gradient).frame(width: 40, height: 40).shadow(color: pinColor.opacity(0.4), radius: 6, y: 3)
+                SwiftUI.Circle().fill(pinColor.gradient).frame(width: 40, height: 40).shadow(color: pinColor.opacity(0.4), radius: 6, y: 3) // ✅ Fixed
                 Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
             }
             Image(systemName: "triangle.fill").font(.system(size: 10)).foregroundStyle(pinColor).rotationEffect(.degrees(180)).offset(y: -3)
@@ -356,7 +356,7 @@ struct TaskCardView: View {
                 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Circle()
+                        SwiftUI.Circle() // ✅ Fixed
                             .fill(Color.green)
                             .frame(width: 8, height: 8)
                         Text(task.title)

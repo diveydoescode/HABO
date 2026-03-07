@@ -84,7 +84,8 @@ struct SplashView: View {
             Color.black.ignoresSafeArea()
             VStack(spacing: 24) {
                 ZStack {
-                    Circle().fill(.ultraThinMaterial).frame(width: 100, height: 100)
+                    // ✅ explicitly use SwiftUI.Circle to avoid colliding with your new API Model
+                    SwiftUI.Circle().fill(.ultraThinMaterial).frame(width: 100, height: 100)
                     Image(systemName: "hands.and.sparkles.fill").font(.system(size: 44))
                         .foregroundStyle(LinearGradient(colors: [Color(red: 1.0, green: 0.5, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)], startPoint: .topLeading, endPoint: .bottomTrailing))
                 }

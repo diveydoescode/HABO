@@ -7,8 +7,8 @@ struct ProfileView: View {
     let onSignOut: () -> Void
 
     @State private var selectedTaskTab: ProfileTaskTab = .posted
+    @State private var showMyCircles: Bool = false // ✅ Added state for Circles sheet
     
-    // ✅ NEW: Environment variable to handle URL redirects
     @Environment(\.openURL) var openURL
 
     enum ProfileTaskTab: String, CaseIterable {
@@ -46,6 +46,9 @@ struct ProfileView: View {
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
+            .sheet(isPresented: $showMyCircles) { // ✅ Added sheet presentation
+                MyCirclesView()
+            }
         }
     }
 
@@ -53,7 +56,7 @@ struct ProfileView: View {
     private var profileHeader: some View {
         VStack(spacing: 16) {
             ZStack {
-                Circle()
+                SwiftUI.Circle() // ✅ Namespace fix
                     .fill(LinearGradient(colors: [Color(red: 1.0, green: 0.45, blue: 0.0), Color(red: 1.0, green: 0.3, blue: 0.0)], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 88, height: 88)
                     .shadow(color: Color(red: 1.0, green: 0.45, blue: 0.0).opacity(0.3), radius: 10, y: 5)
@@ -173,24 +176,33 @@ struct ProfileView: View {
     // MARK: - Settings Section
     private var settingsSection: some View {
         VStack(spacing: 0) {
+            
+            // ✅ NEW: My Circles Button
+            Button {
+                showMyCircles = true
+            } label: {
+                SettingsRow(icon: "shield.checkerboard", title: "My Private Circles", color: .purple)
+            }
+            .buttonStyle(.plain)
+            
+            Divider().padding(.leading, 52)
+            
             SettingsRow(icon: "bell.fill", title: "Notifications", color: .red)
             Divider().padding(.leading, 52)
             
-            // ✅ NEW: Functional Redirect for Privacy
             Button {
-                if let url = URL(string: "https://haboapp.com/privacy") { // Replace with actual URL
+                if let url = URL(string: "https://haboapp.com/privacy") {
                     openURL(url)
                 }
             } label: {
                 SettingsRow(icon: "shield.fill", title: "Privacy & Safety", color: .blue)
             }
-            .buttonStyle(.plain) // Prevents the whole row from looking like a standard blue button
+            .buttonStyle(.plain)
             
             Divider().padding(.leading, 52)
             
-            // ✅ NEW: Functional Redirect for Support
             Button {
-                if let url = URL(string: "https://haboapp.com/support") { // Replace with actual URL
+                if let url = URL(string: "https://haboapp.com/support") {
                     openURL(url)
                 }
             } label: {

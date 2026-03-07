@@ -33,7 +33,7 @@ struct LoginView: View {
 
                 VStack(spacing: 20) {
                     ZStack {
-                        Circle()
+                        SwiftUI.Circle() // ✅ Fixed namespace collision here!
                             .fill(.ultraThinMaterial)
                             .frame(width: 110, height: 110)
                             .shadow(color: Color(red: 1.0, green: 0.4, blue: 0.0).opacity(0.3), radius: 20, y: 10)

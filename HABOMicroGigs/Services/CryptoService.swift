@@ -1,10 +1,4 @@
 // MARK: - CryptoService.swift
-// NEW FILE — Add to HABOMicroGigs/Services/CryptoService.swift
-//
-// E2EE using Swift CryptoKit (no external library needed on iOS).
-// Uses Curve25519 key agreement + ChaCha20-Poly1305 symmetric encryption.
-// Private key stored in iOS Keychain via SecureEnclave where available.
-
 import Foundation
 import CryptoKit
 import Security
@@ -15,23 +9,19 @@ class CryptoService {
     private init() {}
 
     private let privateKeyTag = "app.habo.nacl.privatekey"
-    private let publicKeyTag  = "app.habo.nacl.publickey"
 
     // MARK: - Key Pair Management
-
-    /// Returns existing key pair or generates a new one.
-    /// Public key is base64 — sent to server on login.
-    /// Private key stays in Keychain only.
     func getOrCreateKeyPair() throws -> (publicKeyB64: String, privateKeyB64: String) {
         if let existing = loadPrivateKey() {
-            let pubKey = existing.publicKey
-            let pubB64 = pubKey.rawRepresentation.base64EncodedString()
+            let pubB64 = existing.publicKey.rawRepresentation.base64EncodedString()
             let privB64 = existing.rawRepresentation.base64EncodedString()
             return (pubB64, privB64)
         }
+        
         // Generate new Curve25519 key pair
         let privateKey = Curve25519.KeyAgreement.PrivateKey()
         try savePrivateKey(privateKey)
+        
         let pubB64 = privateKey.publicKey.rawRepresentation.base64EncodedString()
         let privB64 = privateKey.rawRepresentation.base64EncodedString()
         return (pubB64, privB64)
@@ -68,18 +58,18 @@ class CryptoService {
         let plaintextData = Data(plaintext.utf8)
         let sealedBox = try ChaChaPoly.seal(plaintextData, using: symmetricKey)
 
-        let ciphertextB64 = sealedBox.ciphertext.base64EncodedString()
+        // ✅ FIX: Use CryptoKit's native `.combined` to keep nonce, ciphertext, and tag safely together
+        let combinedB64 = sealedBox.combined.base64EncodedString()
         let nonceB64 = sealedBox.nonce.withUnsafeBytes { Data($0) }.base64EncodedString()
-        // Prepend tag to ciphertext for storage (tag needed for decryption)
-        let combined = (sealedBox.tag + sealedBox.ciphertext).base64EncodedString()
 
-        return (combined, nonceB64)
+        // We send the combined data as the 'ciphertext' field so the tag is never lost
+        return (combinedB64, nonceB64)
     }
 
     // MARK: - Decrypt (recipient decrypts)
     func decrypt(ciphertextB64: String, nonceB64: String, senderPublicKeyB64: String) throws -> String {
+        // ✅ FIX: We expect `ciphertextB64` to be the full `combined` payload
         guard let combinedData = Data(base64Encoded: ciphertextB64),
-              let nonceData = Data(base64Encoded: nonceB64),
               let senderKeyData = Data(base64Encoded: senderPublicKeyB64),
               let (_, myPrivB64) = try? getOrCreateKeyPair(),
               let myPrivData = Data(base64Encoded: myPrivB64) else {
@@ -97,13 +87,10 @@ class CryptoService {
             outputByteCount: 32
         )
 
-        // Split combined (tag + ciphertext)
-        let tag = combinedData.prefix(16)
-        let ciphertext = combinedData.dropFirst(16)
-        let nonce = try ChaChaPoly.Nonce(data: nonceData)
-        let sealedBox = try ChaChaPoly.SealedBox(nonce: nonce, ciphertext: ciphertext, tag: tag)
-
+        // ✅ FIX: Initialize the SealedBox securely using the combined data (prevents Error 1)
+        let sealedBox = try ChaChaPoly.SealedBox(combined: combinedData)
         let plainData = try ChaChaPoly.open(sealedBox, using: symmetricKey)
+        
         return String(data: plainData, encoding: .utf8) ?? "???"
     }
 

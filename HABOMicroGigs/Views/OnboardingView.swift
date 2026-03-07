@@ -98,7 +98,7 @@ struct OnboardingPage: View {
         VStack(spacing: 24) {
             Spacer()
             ZStack {
-                Circle().fill(color.opacity(0.15)).frame(width: 160, height: 160)
+                SwiftUI.Circle().fill(color.opacity(0.15)).frame(width: 160, height: 160) // ✅ Fixed namespace collision!
                 Image(systemName: imageName).font(.system(size: 80)).foregroundStyle(color)
             }
             .padding(.bottom, 20)
@@ -309,7 +309,7 @@ struct SkillRowView: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 
-                // ✅ NEW: Custom segmented button row
+                // Custom segmented button row
                 HStack(spacing: 8) {
                     ForEach(1...5, id: \.self) { level in
                         Button {
