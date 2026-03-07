@@ -1,7 +1,6 @@
 // MARK: - CryptoService.swift
 import Foundation
 import CryptoKit
-import Security
 
 @MainActor
 class CryptoService {
@@ -12,18 +11,26 @@ class CryptoService {
 
     // MARK: - Key Pair Management
     func getOrCreateKeyPair() throws -> (publicKeyB64: String, privateKeyB64: String) {
-        if let existing = loadPrivateKey() {
-            let pubB64 = existing.publicKey.rawRepresentation.base64EncodedString()
-            let privB64 = existing.rawRepresentation.base64EncodedString()
-            return (pubB64, privB64)
+        // ✅ 1. Safely load existing key from UserDefaults instead of volatile Keychain
+        if let privB64 = UserDefaults.standard.string(forKey: privateKeyTag),
+           let privData = Data(base64Encoded: privB64) {
+            do {
+                let privateKey = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: privData)
+                let pubB64 = privateKey.publicKey.rawRepresentation.base64EncodedString()
+                return (pubB64, privB64)
+            } catch {
+                print("Key corrupted, generating new one.")
+            }
         }
         
-        // Generate new Curve25519 key pair
+        // ✅ 2. Generate new Curve25519 key pair if one doesn't exist
         let privateKey = Curve25519.KeyAgreement.PrivateKey()
-        try savePrivateKey(privateKey)
-        
-        let pubB64 = privateKey.publicKey.rawRepresentation.base64EncodedString()
         let privB64 = privateKey.rawRepresentation.base64EncodedString()
+        let pubB64 = privateKey.publicKey.rawRepresentation.base64EncodedString()
+        
+        // ✅ 3. Save persistently to UserDefaults
+        UserDefaults.standard.set(privB64, forKey: privateKeyTag)
+        
         return (pubB64, privB64)
     }
 
@@ -58,22 +65,23 @@ class CryptoService {
         let plaintextData = Data(plaintext.utf8)
         let sealedBox = try ChaChaPoly.seal(plaintextData, using: symmetricKey)
 
-        // ✅ FIX: Use CryptoKit's native `.combined` to keep nonce, ciphertext, and tag safely together
         let combinedB64 = sealedBox.combined.base64EncodedString()
         let nonceB64 = sealedBox.nonce.withUnsafeBytes { Data($0) }.base64EncodedString()
 
-        // We send the combined data as the 'ciphertext' field so the tag is never lost
         return (combinedB64, nonceB64)
     }
 
     // MARK: - Decrypt (recipient decrypts)
     func decrypt(ciphertextB64: String, nonceB64: String, senderPublicKeyB64: String) throws -> String {
-        // ✅ FIX: We expect `ciphertextB64` to be the full `combined` payload
-        guard let combinedData = Data(base64Encoded: ciphertextB64),
-              let senderKeyData = Data(base64Encoded: senderPublicKeyB64),
-              let (_, myPrivB64) = try? getOrCreateKeyPair(),
+        guard let combinedData = Data(base64Encoded: ciphertextB64) else {
+            throw CryptoError.invalidBase64
+        }
+        guard let senderKeyData = Data(base64Encoded: senderPublicKeyB64) else {
+            throw CryptoError.invalidKey
+        }
+        guard let (_, myPrivB64) = try? getOrCreateKeyPair(),
               let myPrivData = Data(base64Encoded: myPrivB64) else {
-            throw CryptoError.decryptionFailed
+            throw CryptoError.invalidKey
         }
 
         let senderPublicKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: senderKeyData)
@@ -87,45 +95,19 @@ class CryptoService {
             outputByteCount: 32
         )
 
-        // ✅ FIX: Initialize the SealedBox securely using the combined data (prevents Error 1)
         let sealedBox = try ChaChaPoly.SealedBox(combined: combinedData)
         let plainData = try ChaChaPoly.open(sealedBox, using: symmetricKey)
         
-        return String(data: plainData, encoding: .utf8) ?? "???"
-    }
-
-    // MARK: - Keychain Helpers
-    private func savePrivateKey(_ key: Curve25519.KeyAgreement.PrivateKey) throws {
-        let keyData = key.rawRepresentation
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrAccount: privateKeyTag,
-            kSecValueData: keyData,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { throw CryptoError.keychainError }
-    }
-
-    private func loadPrivateKey() -> Curve25519.KeyAgreement.PrivateKey? {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrAccount: privateKeyTag,
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let key = try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: data)
-        else { return nil }
-        return key
+        guard let resultString = String(data: plainData, encoding: .utf8) else {
+            throw CryptoError.decryptionFailed
+        }
+        return resultString
     }
 
     enum CryptoError: Error {
         case invalidKey
+        case encryptionFailed
         case decryptionFailed
-        case keychainError
+        case invalidBase64
     }
 }

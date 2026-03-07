@@ -47,7 +47,7 @@ struct OnboardingView: View {
                         color: .green
                     ).tag(2)
                     
-                    // ✅ The completely redesigned Profile Setup Page
+                    // The completely redesigned Profile Setup Page
                     ProfileSetupPage(authViewModel: authViewModel, onComplete: completeOnboarding)
                         .tag(3)
                 }
@@ -98,7 +98,7 @@ struct OnboardingPage: View {
         VStack(spacing: 24) {
             Spacer()
             ZStack {
-                SwiftUI.Circle().fill(color.opacity(0.15)).frame(width: 160, height: 160) // ✅ Fixed namespace collision!
+                SwiftUI.Circle().fill(color.opacity(0.15)).frame(width: 160, height: 160) // Fixed namespace collision!
                 Image(systemName: imageName).font(.system(size: 80)).foregroundStyle(color)
             }
             .padding(.bottom, 20)
@@ -129,6 +129,7 @@ struct ProfileSetupPage: View {
     @State private var selectedSkills: [UserSkill] = []
     @State private var showSkillSelector = false
     @State private var isSaving = false
+    @State private var errorMessage: String? = nil // ✅ ADDED ERROR STATE
     
     let availableSkills = [
         "Copywriting", "Roadside Help", "Coding", "Education",
@@ -226,6 +227,15 @@ struct ProfileSetupPage: View {
                 
                 Spacer(minLength: 20)
                 
+                // ✅ ERROR DISPLAY
+                if let err = errorMessage {
+                    Text(err)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
                 // Save Button
                 Button {
                     Task { await saveProfile() }
@@ -268,10 +278,20 @@ struct ProfileSetupPage: View {
     }
     
     private func saveProfile() async {
+        // ✅ Safely unwrap user ID or show an error
+        guard let userId = authViewModel.currentUser?.id.uuidString else {
+            errorMessage = "Authentication issue: Could not verify User ID. Please restart the app."
+            return
+        }
+        
         isSaving = true
+        errorMessage = nil // Reset error state
+        
         do {
             let request = ProfileUpdateRequest(name: displayName, skills: selectedSkills)
-            let updatedUser = try await APIClient.shared.updateProfile(request: request)
+            
+            // Use the updated endpoint
+            let updatedUser = try await APIClient.shared.updateProfile(userId: userId, request: request)
             
             await MainActor.run {
                 authViewModel.currentUser = updatedUser
@@ -280,7 +300,11 @@ struct ProfileSetupPage: View {
             }
         } catch {
             print("Failed to save profile: \(error)")
-            await MainActor.run { isSaving = false }
+            await MainActor.run {
+                // ✅ SHOW THE ACTUAL ERROR TO THE USER
+                errorMessage = error.localizedDescription
+                isSaving = false
+            }
         }
     }
 }

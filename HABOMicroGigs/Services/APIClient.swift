@@ -120,8 +120,9 @@ class APIClient {
         try await request("GET", path: "/auth/me")
     }
     
-    func updateProfile(request body: ProfileUpdateRequest) async throws -> UserResponse {
-        try await request("PUT", path: "/users/me", body: body)
+    // ✅ FIXED: Pass the explicit userId instead of "me" to avoid 403 Forbidden route hijacking
+    func updateProfile(userId: String, request body: ProfileUpdateRequest) async throws -> UserResponse {
+        try await request("PUT", path: "/users/\(userId)", body: body)
     }
 
     // MARK: - Tasks
@@ -177,7 +178,6 @@ class APIClient {
         try await request("GET", path: "/circles/")
     }
 
-    // ✅ FIXED: Added `description` parameter to match the updated model
     func createCircle(name: String, description: String? = nil) async throws -> Circle {
         let payload = CircleCreateRequest(name: name, description: description)
         return try await request("POST", path: "/circles/", body: payload)

@@ -91,7 +91,7 @@ struct ChatView: View {
                 Task { await sendMessage() }
             } label: {
                 ZStack {
-                    SwiftUI.Circle() // ✅ Fixed namespace collision here!
+                    SwiftUI.Circle()
                         .fill(inputText.trimmingCharacters(in: .whitespaces).isEmpty ? Color(.systemGray5) : Color(red: 1.0, green: 0.45, blue: 0.0))
                         .frame(width: 44, height: 44)
                     
@@ -116,10 +116,14 @@ struct ChatView: View {
             fetched = fetched.map { msg in
                 var m = msg
                 if msg.senderId != currentUserId {
-                    m.plaintext = try? CryptoService.shared.decrypt(ciphertextB64: msg.ciphertext, nonceB64: msg.nonce, senderPublicKeyB64: recipientPublicKey)
+                    // ✅ We now explicitly catch the error and display WHY it failed
+                    do {
+                        m.plaintext = try CryptoService.shared.decrypt(ciphertextB64: msg.ciphertext, nonceB64: msg.nonce, senderPublicKeyB64: recipientPublicKey)
+                    } catch {
+                        m.plaintext = "🔒 Keys out of sync (Reinstall detected)"
+                    }
                 } else {
-                    // ✅ Looks up your own sent messages from device memory!
-                    m.plaintext = getCachedText(for: msg.id) ?? "🔒"
+                    m.plaintext = getCachedText(for: msg.id) ?? "🔒 (App Reinstalled)"
                 }
                 return m
             }
@@ -147,7 +151,6 @@ struct ChatView: View {
                 nonce: encrypted.nonce
             )
             sent.plaintext = text
-            // ✅ Saves the text you just typed to the device memory
             cacheText(text, for: sent.id)
             messages.append(sent)
             isSending = false
