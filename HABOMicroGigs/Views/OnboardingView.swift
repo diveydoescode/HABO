@@ -12,74 +12,88 @@ struct OnboardingView: View {
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
             
-            VStack {
-                // Skip Button
-                HStack {
-                    Spacer()
-                    Button("Skip") {
-                        withAnimation { currentPage = 3 }
-                    }
-                    .font(.system(.subheadline, design: .rounded, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .padding()
-                    .opacity((currentPage == 3) ? 0 : 1)
-                }
-                
-                TabView(selection: $currentPage) {
-                    OnboardingPage(
-                        imageName: "map.circle.fill",
-                        title: "Find help nearby",
-                        description: "See micro-gigs and tasks posted by people in your local neighborhood right on the map.",
-                        color: .blue
-                    ).tag(0)
-                    
-                    OnboardingPage(
-                        imageName: "plus.circle.fill",
-                        title: "Post what you need",
-                        description: "Need a hand? Post a task, set your budget, and get help from verified locals in minutes.",
-                        color: accentColor
-                    ).tag(1)
-                    
-                    OnboardingPage(
-                        imageName: "indianrupeesign.circle.fill",
-                        title: "Earn by helping",
-                        description: "Accept tasks, complete them, and get paid securely right through the app.",
-                        color: .green
-                    ).tag(2)
-                    
-                    // The completely redesigned Profile Setup Page
-                    ProfileSetupPage(authViewModel: authViewModel, onComplete: completeOnboarding)
-                        .tag(3)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .always))
-                .indexViewStyle(.page(backgroundDisplayMode: .always))
-                
-                // Bottom Navigation (Only for pages 0-2)
-                if currentPage < 3 {
-                    Button {
-                        withAnimation { currentPage += 1 }
-                    } label: {
-                        Text(currentPage == 2 ? "Set Up Profile" : "Next")
-                            .font(.system(.headline, design: .rounded, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(accentColor)
-                            .foregroundStyle(.white)
-                            .clipShape(.capsule)
-                            .shadow(color: accentColor.opacity(0.3), radius: 8, y: 4)
-                            .padding(.horizontal, 24)
-                            .padding(.bottom, 40)
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                } else {
-                    Color.clear.frame(height: 50).padding(.bottom, 40)
-                }
+            // ✅ Conditionally show Profile Setup vs Welcome Tour
+            if authViewModel.isAuthenticated {
+                // User is logged in but hasn't set up their profile yet
+                ProfileSetupPage(authViewModel: authViewModel, onComplete: completeProfileSetup)
+            } else {
+                // User is not logged in. Show the Welcome Tour.
+                welcomeTourView
             }
         }
         .animation(.easeInOut, value: currentPage)
     }
     
-    private func completeOnboarding() {
+    // MARK: - Pre-Login Welcome Tour
+    private var welcomeTourView: some View {
+        VStack {
+            // Skip Button
+            HStack {
+                Spacer()
+                Button("Skip") {
+                    finishWelcomeTour()
+                }
+                .font(.system(.subheadline, design: .rounded, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding()
+            }
+            
+            TabView(selection: $currentPage) {
+                OnboardingPage(
+                    imageName: "map.circle.fill",
+                    title: "Find help nearby",
+                    description: "See micro-gigs and tasks posted by people in your local neighborhood right on the map.",
+                    color: .blue
+                ).tag(0)
+                
+                OnboardingPage(
+                    imageName: "plus.circle.fill",
+                    title: "Post what you need",
+                    description: "Need a hand? Post a task, set your budget, and get help from verified locals in minutes.",
+                    color: accentColor
+                ).tag(1)
+                
+                OnboardingPage(
+                    imageName: "indianrupeesign.circle.fill",
+                    title: "Earn by helping",
+                    description: "Accept tasks, complete them, and get paid securely right through the app.",
+                    color: .green
+                ).tag(2)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .always))
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            
+            // Bottom Navigation
+            Button {
+                if currentPage < 2 {
+                    withAnimation { currentPage += 1 }
+                } else {
+                    finishWelcomeTour()
+                }
+            } label: {
+                Text(currentPage == 2 ? "Get Started" : "Next")
+                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(accentColor)
+                    .foregroundStyle(.white)
+                    .clipShape(.capsule)
+                    .shadow(color: accentColor.opacity(0.3), radius: 8, y: 4)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
+            }
+        }
+    }
+    
+    // Action: Finish Tour & Go to Login
+    private func finishWelcomeTour() {
+        withAnimation(.spring(response: 0.5)) {
+            hasSeenOnboarding = true
+        }
+    }
+    
+    // Action: Profile Saved, Go to Main App
+    private func completeProfileSetup() {
         withAnimation(.spring(response: 0.5)) {
             hasSeenOnboarding = true
             authViewModel.needsOnboarding = false
@@ -98,7 +112,7 @@ struct OnboardingPage: View {
         VStack(spacing: 24) {
             Spacer()
             ZStack {
-                SwiftUI.Circle().fill(color.opacity(0.15)).frame(width: 160, height: 160) // Fixed namespace collision!
+                SwiftUI.Circle().fill(color.opacity(0.15)).frame(width: 160, height: 160)
                 Image(systemName: imageName).font(.system(size: 80)).foregroundStyle(color)
             }
             .padding(.bottom, 20)
@@ -129,7 +143,7 @@ struct ProfileSetupPage: View {
     @State private var selectedSkills: [UserSkill] = []
     @State private var showSkillSelector = false
     @State private var isSaving = false
-    @State private var errorMessage: String? = nil // ✅ ADDED ERROR STATE
+    @State private var errorMessage: String? = nil
     
     let availableSkills = [
         "Copywriting", "Roadside Help", "Coding", "Education",
@@ -227,7 +241,7 @@ struct ProfileSetupPage: View {
                 
                 Spacer(minLength: 20)
                 
-                // ✅ ERROR DISPLAY
+                // ERROR DISPLAY
                 if let err = errorMessage {
                     Text(err)
                         .font(.caption.weight(.bold))
@@ -278,20 +292,14 @@ struct ProfileSetupPage: View {
     }
     
     private func saveProfile() async {
-        // ✅ Safely unwrap user ID or show an error
-        guard let userId = authViewModel.currentUser?.id.uuidString else {
-            errorMessage = "Authentication issue: Could not verify User ID. Please restart the app."
-            return
-        }
-        
         isSaving = true
-        errorMessage = nil // Reset error state
+        errorMessage = nil
         
         do {
             let request = ProfileUpdateRequest(name: displayName, skills: selectedSkills)
             
-            // Use the updated endpoint
-            let updatedUser = try await APIClient.shared.updateProfile(userId: userId, request: request)
+            // ✅ Send the update to the restored /users/me endpoint
+            let updatedUser = try await APIClient.shared.updateProfile(request: request)
             
             await MainActor.run {
                 authViewModel.currentUser = updatedUser
@@ -301,8 +309,8 @@ struct ProfileSetupPage: View {
         } catch {
             print("Failed to save profile: \(error)")
             await MainActor.run {
-                // ✅ SHOW THE ACTUAL ERROR TO THE USER
-                errorMessage = error.localizedDescription
+                // Display the actual error on screen if the request fails
+                errorMessage = "Error: \(error.localizedDescription)"
                 isSaving = false
             }
         }
@@ -333,7 +341,6 @@ struct SkillRowView: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 
-                // Custom segmented button row
                 HStack(spacing: 8) {
                     ForEach(1...5, id: \.self) { level in
                         Button {

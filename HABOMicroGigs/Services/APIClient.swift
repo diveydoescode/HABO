@@ -120,9 +120,9 @@ class APIClient {
         try await request("GET", path: "/auth/me")
     }
     
-    // ✅ FIXED: Pass the explicit userId instead of "me" to avoid 403 Forbidden route hijacking
-    func updateProfile(userId: String, request body: ProfileUpdateRequest) async throws -> UserResponse {
-        try await request("PUT", path: "/users/\(userId)", body: body)
+    // ✅ REVERTED: Back to /users/me since your backend expects this!
+    func updateProfile(request body: ProfileUpdateRequest) async throws -> UserResponse {
+        try await request("PUT", path: "/users/me", body: body)
     }
 
     // MARK: - Tasks
